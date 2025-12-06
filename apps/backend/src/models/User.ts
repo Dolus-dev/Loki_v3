@@ -4,8 +4,8 @@ import { ModerationEvents } from "./Moderation";
 
 @Entity()
 export class User {
-	@PrimaryColumn({ type: "int", unique: true })
-	id: number;
+	@PrimaryColumn({ type: "varchar", unique: true })
+	id: string;
 
 	@Column({ type: "varchar" })
 	username: string;
@@ -29,7 +29,7 @@ export class User {
 	moderationEventsLastUpdated!: ModerationEvents[];
 
 	constructor(
-		id: number,
+		id: string,
 		username: string,
 		accessToken: string,
 		refreshToken: string,

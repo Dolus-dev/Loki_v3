@@ -11,6 +11,7 @@ import { ModerationEvents } from "./models/Moderation";
 
 const app = express();
 app.use(cookieParser());
+app.use(express.json());
 app.use(
 	cors({
 		credentials: true,
@@ -20,7 +21,7 @@ app.use(
 app.use(baseRouter);
 const PORT = process.env.PORT || 4000;
 
-const AppDataSource = new DataSource({
+export const AppDataSource = new DataSource({
 	type: "postgres",
 	host: process.env.DB_HOST || "localhost",
 	port: parseInt(process.env.DB_PORT || "5432"),
@@ -29,6 +30,7 @@ const AppDataSource = new DataSource({
 	database: process.env.DB_NAME || "Loki",
 	entities: [User, ModerationEvents],
 	synchronize: process.env.NODE_ENV !== "production" ? true : false,
+	dropSchema: process.env.NODE_ENV !== "production" ? true : false,
 	logging: false,
 });
 
