@@ -12,10 +12,7 @@ export const router = express.Router();
 
 router.get("/", async (req, res) => {
 	const { code, state } = req.query;
-	const storedState = req.cookies["auth_state"];
-
-	const requestBody = req.body;
-	console.log("Request Body:", requestBody);
+	const storedState = await req.cookies["auth_state"];
 
 	if (!state || state !== storedState) {
 		return res.status(401).send({ error: "State mismatch or missing" });
@@ -34,7 +31,6 @@ router.get("/", async (req, res) => {
 	}
 
 	let discordUser: APIUser;
-
 	try {
 		discordUser = await fetchDiscordUser(tokenResponse.access_token);
 	} catch (error) {
@@ -56,15 +52,7 @@ router.get("/", async (req, res) => {
 			skipUpdateIfNoValuesChanged: true,
 		}
 	);
-
 	req.session.userId = discordUser.id;
-
-	res.cookie("session_id", req.session.userId, {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "strict",
-		maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-	});
 
 	return res.status(200).send({ message: "Callback handled successfully" });
 });

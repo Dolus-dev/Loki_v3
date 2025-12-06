@@ -8,17 +8,35 @@ import { router as baseRouter } from "./routes/base-router";
 
 import { User } from "./models/User";
 import { ModerationEvents } from "./models/Moderation";
+import session from "express-session";
 
 const app = express();
 app.use(cookieParser());
 app.use(express.json());
+
+app.use(
+	session({
+		secret: process.env.SESSION_SECRET || "DevelopmentSecret",
+		resave: false,
+		saveUninitialized: false,
+		cookie: {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "strict",
+			maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+		},
+	})
+);
+
 app.use(
 	cors({
 		credentials: true,
 		origin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
 	})
 );
+
 app.use(baseRouter);
+
 const PORT = process.env.PORT || 4000;
 
 export const AppDataSource = new DataSource({
