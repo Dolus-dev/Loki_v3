@@ -7,16 +7,16 @@ export class User {
 	@PrimaryColumn({ type: "varchar", unique: true })
 	id: string;
 
-	@Column({ type: "varchar" })
+	@Column({ type: "varchar", nullable: true })
 	username: string;
 
 	@Column({ type: "varchar", nullable: true })
 	avatarHash: string | null;
 
-	@Column({ type: "varchar" })
+	@Column({ type: "varchar", nullable: true })
 	accessToken: string;
 
-	@Column({ type: "varchar" })
+	@Column({ type: "varchar", nullable: true })
 	refreshToken: string;
 
 	@OneToMany(() => ModerationEvents, (event) => event.issuedTo)
