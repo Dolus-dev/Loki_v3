@@ -1,5 +1,6 @@
 import { Column, Entity, OneToMany, PrimaryColumn } from "typeorm";
 import { ModerationEvents } from "./Moderation";
+import { AuditLog } from "./AuditLog";
 
 @Entity()
 export class Guild {
@@ -14,6 +15,9 @@ export class Guild {
 
 	@OneToMany(() => ModerationEvents, (event) => event.guild)
 	moderationEvents!: ModerationEvents[];
+
+	@OneToMany(() => AuditLog, (auditLog) => auditLog.guild)
+	auditLogs!: AuditLog[];
 
 	constructor(id: string, name: string, iconHash?: string | null) {
 		this.id = id;
