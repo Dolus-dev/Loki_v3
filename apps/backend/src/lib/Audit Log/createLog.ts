@@ -15,13 +15,25 @@ export const AuditAction = {
 			MUTE: "MODERATION_EVENT_UPDATE_MUTE",
 			TIMEOUT: "MODERATION_EVENT_UPDATE_TIMEOUT",
 			WARN: "MODERATION_EVENT_UPDATE_WARN",
+			KICK: "MODERATION_EVENT_UPDATE_KICK",
+			NOTE: "MODERATION_EVENT_UPDATE_NOTE",
 		},
-		DELETE: "MODERATION_EVENT_DELETE",
+		DELETE: {
+			BAN: "MODERATION_EVENT_DELETE_BAN",
+			MUTE: "MODERATION_EVENT_DELETE_MUTE",
+			TIMEOUT: "MODERATION_EVENT_DELETE_TIMEOUT",
+			WARN: "MODERATION_EVENT_DELETE_WARN",
+			KICK: "MODERATION_EVENT_DELETE_KICK",
+			NOTE: "MODERATION_EVENT_DELETE_NOTE",
+		},
 	},
 } as const;
 
+/**
+ * Enum chaining type for Audit Actions
+ */
 export type AuditAction =
-	(typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]];
+	(typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]][keyof (typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]]];
 
 export async function createAuditLogEntry(data: {
 	action: AuditAction;
