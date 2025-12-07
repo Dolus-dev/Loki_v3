@@ -10,6 +10,10 @@ import {
 	MoreThanOrEqual,
 } from "typeorm";
 import { Guild } from "../../../models/Guild";
+import {
+	AuditAction,
+	createAuditLogEntry,
+} from "../../../lib/Audit Log/createLog";
 export const router = express.Router();
 
 router.get("/", (req, res) => {
@@ -230,12 +234,26 @@ router.post("/:userId", async (req, res) => {
 		reason,
 		eventType,
 	});
+
 	try {
 		await moderationRepository.save(newEvent);
 
 		console.log(
 			`Moderation event created: ${newEvent.id} against user ${userId}`
 		);
+
+		await createAuditLogEntry({
+			action:
+				AuditAction.MODERATION_EVENT.CREATE[
+					eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.CREATE
+				],
+			userId: issuingUser.id,
+			targetUserId: targetUser.id,
+			guildId: guild.id,
+			details: `Created ${eventType} moderation event for user ID ${targetUser.id}`,
+		});
+
+		console.log(`Audit log created for moderation event: ${newEvent.id}`);
 
 		return res
 			.status(201)
@@ -247,17 +265,21 @@ router.post("/:userId", async (req, res) => {
 });
 
 const editModerationEvent = z.object({
-	reason: z
-		.string()
-		.trim()
-		.max(512, "Reason cannot exceed 512 characters")
-		.transform((str) => str || "No reason provided")
-		.optional(),
-	editedBy: z.coerce.number().int().positive(),
+	reason: z.string().trim().max(512, "Reason cannot exceed 512 characters"),
+
+	editedBy: z.coerce
+		.number()
+		.int()
+		.positive()
+		.transform((num) => String(num)),
 });
 
 router.patch("/:eventId", async (req, res) => {
 	const { eventId } = req.params;
+
+	if (!/^\d+$/.test(eventId)) {
+		return res.status(400).send({ error: "Invalid eventId format" });
+	}
 
 	const parseResult = editModerationEvent.safeParse(req.body);
 	if (!parseResult.success) {
@@ -266,17 +288,135 @@ router.patch("/:eventId", async (req, res) => {
 
 	const { reason, editedBy } = parseResult.data;
 
-	// Placeholder for actual event editing logic
-	// You would typically update the record in your database here
+	const eventRepository = AppDataSource.getRepository(ModerationEvents);
+	const userRepository = AppDataSource.getRepository(User);
+	const auditLogRepository = AppDataSource.getRepository("AuditLog");
 
-	return res.status(200).send({ eventId, ...parseResult.data });
+	const [editingUser, eventToEdit] = await Promise.all([
+		userRepository
+			.upsert(
+				{ id: editedBy },
+				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+			)
+			.then(() => userRepository.findOneBy({ id: editedBy })),
+		eventRepository.findOne({
+			where: { id: Number(eventId) },
+			relations: ["guild"],
+		}),
+	]);
+	if (!editingUser) {
+		return res
+			.status(500)
+			.send({ error: "Failed to create/fetch editing user" });
+	}
+
+	if (!eventToEdit) {
+		return res.status(404).send({ error: "Moderation event not found" });
+	}
+
+	eventToEdit.reason = reason;
+	eventToEdit.lastUpdatedBy = editingUser;
+
+	const newAuditLog = auditLogRepository.create({
+		action:
+			AuditAction.MODERATION_EVENT.UPDATE[
+				eventToEdit.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.UPDATE
+			],
+		user: editingUser,
+		targetUser: eventToEdit.issuedTo,
+		guild: eventToEdit.guild,
+		details: `Edited ${eventToEdit.eventType} moderation event with ID ${eventToEdit.id}`,
+	});
+
+	try {
+		await eventRepository.save(eventToEdit);
+
+		console.log(
+			`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`
+		);
+
+		await auditLogRepository.save(newAuditLog);
+
+		console.log(
+			`Audit log created for moderation event edit: ${newAuditLog.id}`
+		);
+		return res.status(200).send({
+			message: "Moderation event edited successfully",
+			eventId: eventToEdit.id,
+		});
+	} catch (error) {
+		console.error("Error saving edited moderation event:", error);
+		return res.status(500).send({ error: "Failed to edit moderation event" });
+	}
+});
+
+const deleteModerationEvent = z.object({
+	userId: z.coerce
+		.number()
+		.int()
+		.positive()
+		.transform((num) => String(num)),
 });
 
 router.delete("/:eventId", async (req, res) => {
 	const { eventId } = req.params;
 
-	// Placeholder for actual event deletion logic
-	// You would typically delete the record from your database here
+	if (!/^\d+$/.test(eventId)) {
+		return res.status(400).send({ error: "Invalid eventId format" });
+	}
+
+	const eventRepository = AppDataSource.getRepository(ModerationEvents);
+	const auditLogRepository = AppDataSource.getRepository("AuditLog");
+	const userRepository = AppDataSource.getRepository(User);
+
+	const parseResult = deleteModerationEvent.safeParse(req.body);
+
+	if (!parseResult.success) {
+		return res.status(400).send(z.treeifyError(parseResult.error));
+	}
+
+	const { userId } = parseResult.data;
+
+	const [deletingUser, eventToDelete] = await Promise.all([
+		userRepository
+			.upsert(
+				{ id: userId },
+				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+			)
+			.then(() => userRepository.findOneBy({ id: userId })),
+		eventRepository.findOne({
+			where: { id: Number(eventId) },
+		}),
+	]);
+
+	if (!eventToDelete) {
+		return res.status(404).send({ error: "Moderation event not found" });
+	}
+
+	if (!deletingUser) {
+		return res
+			.status(500)
+			.send({ error: "Failed to create/fetch deleting user" });
+	}
+
+	await eventRepository.remove(eventToDelete);
+
+	const newAuditLog = auditLogRepository.create({
+		action:
+			AuditAction.MODERATION_EVENT.DELETE[
+				eventToDelete.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.DELETE
+			],
+		userId: deletingUser.id,
+		targetUserId: eventToDelete.issuedTo.id,
+		guildId: eventToDelete.guild.id,
+		details: `Deleted ${eventToDelete.eventType} moderation event with ID ${eventToDelete.id}`,
+	});
+
+	await auditLogRepository.save(newAuditLog);
+
+	console.log(
+		`Audit log created for moderation event deletion: ${newAuditLog.id}`
+	);
 
 	return res
 		.status(200)

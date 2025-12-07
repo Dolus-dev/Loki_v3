@@ -4,7 +4,7 @@ import { ModerationEvents } from "./Moderation";
 
 @Entity()
 export class User {
-	@PrimaryColumn({ type: "varchar", unique: true })
+	@PrimaryColumn({ type: "varchar", unique: true, nullable: false })
 	id: string;
 
 	@Column({ type: "varchar", nullable: true })
