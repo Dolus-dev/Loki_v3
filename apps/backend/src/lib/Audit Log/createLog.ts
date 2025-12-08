@@ -1,5 +1,8 @@
 import { AppDataSource } from "../..";
 
+/**
+ * Enum Chaining object for Audit Actions
+ */
 export const AuditAction = {
 	MODERATION_EVENT: {
 		CREATE: {
@@ -35,6 +38,10 @@ export const AuditAction = {
 export type AuditAction =
 	(typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]][keyof (typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]]];
 
+/**
+ * Creats an audit log entry in the database
+ * @param data Information for the audit log entry
+ */
 export async function createAuditLogEntry(data: {
 	action: AuditAction;
 	userId: string;

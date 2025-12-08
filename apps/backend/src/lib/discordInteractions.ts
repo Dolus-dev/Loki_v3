@@ -1,5 +1,10 @@
 import { APIUser, RESTPostOAuth2AccessTokenResult } from "discord.js";
 
+/**
+ *  Exchanges an authorization code for an access token
+ * @param code The authorization code received from Discord
+ * @returns The access token result from Discord
+ */
 export async function exchangeCodeForToken(
 	code: string
 ): Promise<RESTPostOAuth2AccessTokenResult> {
@@ -30,6 +35,11 @@ export async function exchangeCodeForToken(
 	return data;
 }
 
+/**
+ * Refreshes an access token using a refresh token
+ * @param refreshToken The refresh token previously received from Discord
+ * @returns The new access token result from Discord
+ */
 export async function refreshToken(
 	refreshToken: string
 ): Promise<RESTPostOAuth2AccessTokenResult> {
@@ -55,6 +65,11 @@ export async function refreshToken(
 	return data;
 }
 
+/**
+ * Fetches Discord User data using an access token
+ * @param accessToken The access token received from Discord
+ * @returns The Discord user data
+ */
 export async function fetchDiscordUser(accessToken: string): Promise<APIUser> {
 	const res = await fetch("https://discord.com/api/v10/users/@me", {
 		method: "GET",

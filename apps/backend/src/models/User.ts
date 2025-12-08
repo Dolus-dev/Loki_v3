@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryColumn, OneToMany, JoinColumn } from "typeorm";
 
-import { ModerationEvents } from "./Moderation";
+import { ModerationEvents } from "./Moderation/ModerationEvents";
 
 @Entity()
 export class User {

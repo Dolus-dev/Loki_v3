@@ -5,9 +5,9 @@ import {
 	ManyToOne,
 	PrimaryGeneratedColumn,
 } from "typeorm";
-import { Guild } from "./Guild";
-import { AuditAction } from "../lib/Audit Log/createLog";
-import { User } from "./User";
+import { Guild } from "../../Guild";
+import { AuditAction } from "../../../lib/Audit Log/createLog";
+import { User } from "../../User";
 
 @Entity("audit_logs")
 export class AuditLog {

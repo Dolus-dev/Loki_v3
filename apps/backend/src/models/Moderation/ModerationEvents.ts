@@ -7,8 +7,8 @@ import {
 	ManyToOne,
 	Relation,
 } from "typeorm";
-import { User } from "./User";
-import { Guild } from "./Guild";
+import { User } from "../User";
+import { Guild } from "../Guild";
 
 @Entity()
 export class ModerationEvents {

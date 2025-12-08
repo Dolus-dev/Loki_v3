@@ -7,7 +7,7 @@ import "reflect-metadata";
 import { router as baseRouter } from "./routes/base-router";
 
 import { User } from "./models/User";
-import { ModerationEvents } from "./models/Moderation";
+import { ModerationEvents } from "./models/Moderation/ModerationEvents";
 import session from "express-session";
 
 const app = express();

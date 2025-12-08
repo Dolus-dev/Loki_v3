@@ -2,7 +2,7 @@ import express from "express";
 import * as z from "zod";
 import { AppDataSource } from "../../..";
 import { User } from "../../../models/User";
-import { ModerationEvents } from "../../../models/Moderation";
+import { ModerationEvents } from "../../../models/Moderation/ModerationEvents";
 import {
 	Between,
 	FindOptionsWhere,
@@ -317,17 +317,6 @@ router.patch("/:eventId", async (req, res) => {
 	eventToEdit.reason = reason;
 	eventToEdit.lastUpdatedBy = editingUser;
 
-	const newAuditLog = auditLogRepository.create({
-		action:
-			AuditAction.MODERATION_EVENT.UPDATE[
-				eventToEdit.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.UPDATE
-			],
-		user: editingUser,
-		targetUser: eventToEdit.issuedTo,
-		guild: eventToEdit.guild,
-		details: `Edited ${eventToEdit.eventType} moderation event with ID ${eventToEdit.id}`,
-	});
-
 	try {
 		await eventRepository.save(eventToEdit);
 
@@ -335,10 +324,19 @@ router.patch("/:eventId", async (req, res) => {
 			`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`
 		);
 
-		await auditLogRepository.save(newAuditLog);
+		await createAuditLogEntry({
+			action:
+				AuditAction.MODERATION_EVENT.UPDATE[
+					eventToEdit.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.UPDATE
+				],
+			userId: editingUser.id,
+			targetUserId: eventToEdit.issuedTo.id,
+			guildId: eventToEdit.guild.id,
+			details: `Edited ${eventToEdit.eventType} moderation event with ID ${eventToEdit.id}`,
+		});
 
 		console.log(
-			`Audit log created for moderation event edit: ${newAuditLog.id}`
+			`Audit log created for moderation event update: ${eventToEdit.id}`
 		);
 		return res.status(200).send({
 			message: "Moderation event edited successfully",
@@ -401,7 +399,7 @@ router.delete("/:eventId", async (req, res) => {
 
 	await eventRepository.remove(eventToDelete);
 
-	const newAuditLog = auditLogRepository.create({
+	await createAuditLogEntry({
 		action:
 			AuditAction.MODERATION_EVENT.DELETE[
 				eventToDelete.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.DELETE
@@ -412,10 +410,8 @@ router.delete("/:eventId", async (req, res) => {
 		details: `Deleted ${eventToDelete.eventType} moderation event with ID ${eventToDelete.id}`,
 	});
 
-	await auditLogRepository.save(newAuditLog);
-
 	console.log(
-		`Audit log created for moderation event deletion: ${newAuditLog.id}`
+		`Audit log created for moderation event deletion: ${eventToDelete.id}`
 	);
 
 	return res
