@@ -1,4 +1,4 @@
-import { APIUser, RESTPostOAuth2AccessTokenResult } from "discord.js";
+import { APIGuild, APIUser, RESTPostOAuth2AccessTokenResult } from "discord.js";
 
 /**
  *  Exchanges an authorization code for an access token
@@ -80,6 +80,21 @@ export async function fetchDiscordUser(accessToken: string): Promise<APIUser> {
 
 	if (!res.ok) {
 		throw new Error(`Failed to fetch Discord user: ${res.statusText}`);
+	}
+	const data = await res.json();
+	return data;
+}
+
+export async function fetchDiscordGuild(guildId: string): Promise<APIGuild> {
+	const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, {
+		method: "GET",
+		headers: {
+			Authorization: `Bot ${process.env.BOT_TOKEN!}`,
+		},
+	});
+
+	if (!res.ok) {
+		throw new Error(`Failed to fetch Discord guild: ${res.statusText}`);
 	}
 	const data = await res.json();
 	return data;
