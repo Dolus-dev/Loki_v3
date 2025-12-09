@@ -1,31 +1,31 @@
 import express from "express";
 import { requireAuth } from "../../../../../lib/requireAuth - Middleware";
-import { StarboardSettings } from "../../../../../models/Fun/Starboard";
 import { AppDataSource } from "../../../../..";
+import { BanSettings } from "../../../../../models/Moderation/Action Settings/BanSettings";
 import z from "zod";
 
 export const router = express.Router({ mergeParams: true });
 
-// Retrieve starboard settings for a guild
+//Retrieve ban settings for a guild
+
 router.get(
 	"/",
 	requireAuth,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
+		const banSettingsRepo = AppDataSource.getRepository(BanSettings);
 
-		const starboardSettingsRepo =
-			AppDataSource.getRepository(StarboardSettings);
-		await starboardSettingsRepo.upsert(
+		await banSettingsRepo.upsert(
 			{
 				guildId: guildId,
 			},
 			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true }
 		);
 
-		const settings = await starboardSettingsRepo.findOneBy({ guildId });
+		const settings = await banSettingsRepo.findOneBy({ guildId });
 
 		if (!settings) {
-			return res.status(500).send("Failed to retrieve starboard settings");
+			return res.status(500).send("Failed to retrieve ban settings");
 		}
 
 		return res.status(200).json(settings);
@@ -33,49 +33,40 @@ router.get(
 );
 
 const patchItems = z.object({
-	enabled: z.boolean(),
-	starboardChannelId: z.string(),
-	starThreshold: z.number().min(1),
-	reactionEmoji: z.string(),
+	reasonRequired: z.boolean(),
+	evidenceRequired: z.boolean(),
+	defaultBanDurationSeconds: z.number().min(0),
 });
 
-// Update starboard settings for a guild
 router.patch(
 	"/",
 	requireAuth,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
-
 		const parseResult = patchItems.safeParse(req.body);
-
 		if (!parseResult.success) {
 			return res
 				.status(400)
 				.json({ error: "Invalid request body", details: parseResult.error });
 		}
-
-		const { enabled, starboardChannelId, starThreshold, reactionEmoji } =
+		const { reasonRequired, evidenceRequired, defaultBanDurationSeconds } =
 			parseResult.data;
 
-		const starboardSettingsRepo =
-			AppDataSource.getRepository(StarboardSettings);
+		const banSettingsRepo = AppDataSource.getRepository(BanSettings);
 
 		try {
-			await starboardSettingsRepo.upsert(
+			await banSettingsRepo.upsert(
 				{
 					guildId: guildId,
-					enabled,
-					starboardChannelId,
-					reactionThreshold: starThreshold,
-					reactionEmoji,
+					reasonRequired,
+					evidenceRequired,
+					defaultBanDurationSeconds,
 				},
 				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true }
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res
-				.status(500)
-				.json({ error: "Failed to update starboard settings" });
+			return res.status(500).json({ error: "Failed to update ban settings" });
 		}
 	}
 );

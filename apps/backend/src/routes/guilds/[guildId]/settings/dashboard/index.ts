@@ -3,7 +3,6 @@ import { DashboardSettings } from "../../../../../models/DashboardSettings";
 import { AppDataSource } from "../../../../..";
 import z, { treeifyError } from "zod";
 import { requireAuth } from "../../../../../lib/requireAuth - Middleware";
-import da from "zod/v4/locales/da.js";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -54,12 +53,6 @@ router.patch(
 
 		const { rolesWithDashboardViewAccess, rolesWithDashboardEditAccess } =
 			parseResult.data;
-
-		if (!rolesWithDashboardViewAccess && !rolesWithDashboardEditAccess) {
-			return res
-				.status(400)
-				.json({ error: "At least one field must be provided to update." });
-		}
 
 		const dashRepo = AppDataSource.getRepository(DashboardSettings);
 
