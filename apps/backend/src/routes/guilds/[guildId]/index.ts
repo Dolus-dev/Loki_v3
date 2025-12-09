@@ -7,9 +7,12 @@ import { fetchDiscordGuild } from "../../../lib/discordInteractions";
 import { ModerationEvents } from "../../../models/Moderation/ModerationEvents";
 import { MoreThan } from "typeorm";
 import { router as settingsRouter } from "./settings/index";
+import { router as moderationRouter } from "./moderation/index";
+
 export const router = express.Router({ mergeParams: true });
 
 router.use("/settings", settingsRouter);
+router.use("/moderation", moderationRouter);
 
 router.get(
 	"/",
