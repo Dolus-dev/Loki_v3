@@ -19,4 +19,7 @@ export class StarboardSettings {
 
 	@Column({ type: "varchar", default: "⭐" })
 	reactionEmoji!: string; // "⭐"  or "<:customEmoji:123456789>"
+
+	@Column({ type: "varchar", default: null, nullable: true })
+	starboardChannelId!: string | null; // If null, starboard is disabled
 }
