@@ -1,50 +1,70 @@
+@import "tailwindcss";
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+	--background: #ffffff;
+	--foreground: #171717;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+@theme {
+	/* Colours */
+	--color-brand-50: hsl(127.5 61.5% 94.9%);
+	--color-brand-100: hsl(129.1 64.7% 90%);
+	--color-brand-200: hsl(127.5 62.7% 80%);
+	--color-brand-300: hsl(128 63.4% 70%);
+	--color-brand-400: hsl(128 62.7% 60%);
+	--color-brand-500: hsl(128.2 63.1% 50%);
+	--color-brand-600: hsl(128 62.7% 40%);
+	--color-brand-700: hsl(128 63.4% 30%);
+	--color-brand-800: hsl(127.5 62.7% 20%);
+	--color-brand-900: hsl(129.1 64.7% 10%);
+	--color-brand-950: hsl(128.2 61.1% 7.1%);
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-}
+	--color-alert-50: hsl(57 76.9% 94.9%);
+	--color-alert-100: hsl(56.9 76.5% 90%);
+	--color-alert-200: hsl(56.9 76.5% 80%);
+	--color-alert-300: hsl(57.4 76.5% 70%);
+	--color-alert-400: hsl(57 77.5% 60%);
+	--color-alert-500: hsl(57 77.3% 50%);
+	--color-alert-600: hsl(57 77.5% 40%);
+	--color-alert-700: hsl(57.4 76.5% 30%);
+	--color-alert-800: hsl(56.9 76.5% 20%);
+	--color-alert-900: hsl(56.9 76.5% 10%);
+	--color-alert-950: hsl(55.7 77.8% 7.1%);
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+	--color-danger-50: hsl(0 92% 95.1%);
+	--color-danger-100: hsl(0 92.2% 90%);
+	--color-danger-200: hsl(0 90.2% 80%);
+	--color-danger-300: hsl(0 90.8% 70%);
+	--color-danger-400: hsl(0 91.2% 60%);
+	--color-danger-500: hsl(0 91.4% 50%);
+	--color-danger-600: hsl(0 91.2% 40%);
+	--color-danger-700: hsl(0 90.8% 30%);
+	--color-danger-800: hsl(0 90.2% 20%);
+	--color-danger-900: hsl(0 92.2% 10%);
+	--color-danger-950: hsl(0 88.9% 7.1%);
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+	--color-info-50: hsl(225 76.9% 94.9%);
+	--color-info-100: hsl(224.6 76.5% 90%);
+	--color-info-200: hsl(225 78.4% 80%);
+	--color-info-300: hsl(224.9 77.8% 70%);
+	--color-info-400: hsl(225 78.4% 60%);
+	--color-info-500: hsl(224.9 78% 50%);
+	--color-info-600: hsl(225 78.4% 40%);
+	--color-info-700: hsl(224.9 77.8% 30%);
+	--color-info-800: hsl(225 78.4% 20%);
+	--color-info-900: hsl(224.6 76.5% 10%);
+	--color-info-950: hsl(225 77.8% 7.1%);
 
-.imgDark {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-
-  .imgLight {
-    display: none;
-  }
-  .imgDark {
-    display: unset;
-  }
+	--color-neutral-50: hsl(240 4% 95.1%);
+	--color-neutral-100: hsl(220 5.9% 90%);
+	--color-neutral-200: hsl(225 3.9% 80%);
+	--color-neutral-300: hsl(222.9 4.6% 70%);
+	--color-neutral-400: hsl(217.5 3.9% 60%);
+	--color-neutral-500: hsl(218.2 4.3% 50%);
+	--color-neutral-600: hsl(217.5 3.9% 40%);
+	--color-neutral-700: hsl(222.9 4.6% 30%);
+	--color-neutral-800: hsl(225 3.9% 20%);
+	--color-neutral-900: hsl(220 5.9% 10%);
+	--color-neutral-950: hsl(210 5.6% 7.1%);
 }
