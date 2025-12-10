@@ -3,7 +3,7 @@ import { requireAuth } from "../../../lib/requireAuth - Middleware";
 
 export const router = express.Router();
 
-router.post("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
 	req.session.destroy((err) => {
 		if (err) {
 			return res.status(500).send({ error: "Failed to log out" });
