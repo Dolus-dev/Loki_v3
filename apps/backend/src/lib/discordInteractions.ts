@@ -11,7 +11,7 @@ export async function exchangeCodeForToken(
 	const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
 	const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET!;
 	const REDIRECT_URI =
-		process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/callback";
+		process.env.DISCORD_REDIRECT_URI || "http://localhost:4000/auth/callback";
 
 	const res = await fetch("https://discord.com/api/v10/oauth2/token", {
 		method: "POST",
@@ -28,6 +28,7 @@ export async function exchangeCodeForToken(
 	});
 
 	if (!res.ok) {
+		console.log(await res.text());
 		throw new Error(`Failed to exchange code for token: ${res.statusText}`);
 	}
 

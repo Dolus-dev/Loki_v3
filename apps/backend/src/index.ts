@@ -9,6 +9,19 @@ import { router as baseRouter } from "./routes/base-router";
 import { User } from "./models/User";
 import { ModerationEvents } from "./models/Moderation/ModerationEvents";
 import session from "express-session";
+import { Guild } from "./models/Guild";
+import { DashboardSettings } from "./models/DashboardSettings";
+import { TicketSettings } from "./models/Tickets/TicketSettings";
+import { Tickets } from "./models/Tickets/Tickets";
+import { AuditLog } from "./models/Moderation/Logging/AuditLog";
+import { LoggingSettings } from "./models/Moderation/Logging/ServerLoggingSettings";
+import { BanSettings } from "./models/Moderation/Action Settings/BanSettings";
+import { KickSettings } from "./models/Moderation/Action Settings/KickSettings";
+import { MuteSettings } from "./models/Moderation/Action Settings/MuteSettings";
+import { TimeoutSettings } from "./models/Moderation/Action Settings/TimeoutSettings";
+import { WarnSettings } from "./models/Moderation/Action Settings/WarnSettings";
+import { StarboardSettings } from "./models/Fun/Starboard";
+import { ThrowCommand } from "./models/Fun/Throw";
 
 const app = express();
 app.use(cookieParser());
@@ -46,7 +59,23 @@ export const AppDataSource = new DataSource({
 	username: process.env.DB_USER || "postgres",
 	password: process.env.DB_PASSWORD || "cupiddev",
 	database: process.env.DB_NAME || "Loki",
-	entities: [User, ModerationEvents],
+	entities: [
+		User,
+		ModerationEvents,
+		Guild,
+		DashboardSettings,
+		TicketSettings,
+		Tickets,
+		AuditLog,
+		LoggingSettings,
+		BanSettings,
+		KickSettings,
+		MuteSettings,
+		TimeoutSettings,
+		WarnSettings,
+		StarboardSettings,
+		ThrowCommand,
+	],
 	synchronize: process.env.NODE_ENV !== "production" ? true : false,
 	dropSchema: process.env.NODE_ENV !== "production" ? true : false,
 	logging: false,
