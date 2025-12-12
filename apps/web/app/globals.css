@@ -4,17 +4,29 @@
 	--foreground: #171717;
 }
 
+:root[data-theme="light"] {
+	--hover-bg: hsla(129.1, 64.7%, 10%, 0.15);
+	--theme-toggler-handle-bg: #171717;
+	--theme-toggler-bg: var(--color-neutral-300);
+}
+
+:root[data-theme="dark"] {
+	--hover-bg: hsla(129.1, 64.7%, 10%, 0.25);
+	--theme-toggler-handle-bg: #ffffff;
+	--theme-toggler-bg: var(--color-neutral-500);
+}
+
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 @theme {
 	/* Colours */
 	--color-brand-50: hsl(127.5 61.5% 94.9%);
-	--color-brand-100: hsl(129.1 64.7% 90%);
-	--color-brand-200: hsl(127.5 62.7% 80%);
-	--color-brand-300: hsl(128 63.4% 70%);
-	--color-brand-400: hsl(128 62.7% 60%);
-	--color-brand-500: hsl(128.2 63.1% 50%);
-	--color-brand-600: hsl(128 62.7% 40%);
+	--color-brand-100: hsl(129.1 64.7% 80%);
+	--color-brand-200: hsl(127.5 62.7% 70%);
+	--color-brand-300: hsl(128 63.4% 60%);
+	--color-brand-400: hsl(128 62.7% 50%);
+	--color-brand-500: hsl(128.2 63.1% 40%);
+	--color-brand-600: hsl(128 62.7% 35%);
 	--color-brand-700: hsl(128 63.4% 30%);
 	--color-brand-800: hsl(127.5 62.7% 20%);
 	--color-brand-900: hsl(129.1 64.7% 10%);
