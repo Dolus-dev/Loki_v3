@@ -12,7 +12,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 		return res.status(200).send({
 			id: user.id,
-			username: user.username,
+			username: user.global_name || user.username,
 			avatarHash: user.avatar,
 		});
 	} catch (error) {
