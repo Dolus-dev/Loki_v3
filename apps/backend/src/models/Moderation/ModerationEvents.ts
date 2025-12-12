@@ -24,10 +24,10 @@ export class ModerationEvents {
 	})
 	eventType: "ban" | "mute" | "warn" | "timeout" | "kick" | "note";
 
-	@Column({ type: "string", nullable: true })
+	@Column({ type: "varchar", nullable: true })
 	evidenceMessageId!: string | null; // ID of the message containing evidence
 
-	@Column({ type: "string", nullable: true })
+	@Column({ type: "varchar", nullable: true })
 	evidenceUrl!: string | null; // Direct URL to evidence (e.g., screenshot)
 
 	@Column({ type: "text", nullable: true })
@@ -36,7 +36,7 @@ export class ModerationEvents {
 	@Column({ type: "boolean", default: false })
 	isAppealed!: boolean;
 
-	@Column({ type: "timestamp", default: false })
+	@Column({ type: "timestamp", default: null })
 	appealedAt!: Date | null;
 
 	@Column({ type: "timestamp", nullable: true })
