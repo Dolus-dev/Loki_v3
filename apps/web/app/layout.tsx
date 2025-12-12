@@ -5,6 +5,9 @@ import { Theme } from "./lib/enums";
 import isValidTheme from "./lib/validateTheme";
 import { UserProvider } from "./lib/hooks/useUser";
 import RootLayoutHeader from "./components/Root Layout Header/Header";
+import { Hanuman } from "next/font/google";
+
+const hanuman = Hanuman({ subsets: ["latin"] });
 
 /** Fonts to be chosen Later  */
 
@@ -30,17 +33,17 @@ export default async function RootLayout({
 	return (
 		<html
 			lang="en"
-			className="scroll-smooth min-w-dvw"
+			className={`scroll-smooth min-w-dvw ${hanuman.className}`}
 			data-scroll-behavior="smooth"
 			data-theme={theme === Theme.Dark ? "dark" : "light"}>
 			<body
-				className={`antialiased relative  flex flex-col min-h-dvh  bg-neutral-200 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100`}>
+				className={`antialiased relative  flex flex-col min-h-dvh transition-colors duration-300 bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100`}>
 				<UserProvider>
 					<RootLayoutHeader />
 					{children}
 					<footer>
-						<div className="w-full h-20 bg-brand-700 dark:bg-brand-900 absolute bottom-0 flex items-center justify-center">
-							<p className="text-neutral-800 dark:text-neutral-300">
+						<div className="w-full h-20 bg-brand-900 dark:bg-brand-900 absolute bottom-0  flex items-center justify-center">
+							<p className="text-neutral-300 dark:text-neutral-300">
 								© 2024 Loki App. All rights reserved.
 							</p>
 						</div>

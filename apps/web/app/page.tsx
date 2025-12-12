@@ -1,3 +1,3 @@
 export default function Home() {
-	return <>Hello World</>;
+	return <div className="transition-colors duration-300">Hello World</div>;
 }
