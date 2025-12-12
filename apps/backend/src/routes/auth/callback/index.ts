@@ -10,6 +10,8 @@ import { User } from "../../../models/User";
 
 export const router = express.Router();
 
+const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:3000";
+
 router.get("/", async (req, res) => {
 	const { code, state } = req.query;
 	const storedState = await req.cookies["auth_state"];
@@ -53,6 +55,8 @@ router.get("/", async (req, res) => {
 		}
 	);
 	req.session.userId = discordUser.id;
+	req.session.accessToken = tokenResponse.access_token;
+	req.session.refreshToken = tokenResponse.refresh_token;
 
-	return res.status(200).send({ message: "Callback handled successfully" });
+	return res.redirect(`${FRONTEND_URL}/`);
 });
