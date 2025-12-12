@@ -7,7 +7,7 @@ export const router = express.Router();
 
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
 const REDIRECT_URI =
-	process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/callback";
+	process.env.DISCORD_REDIRECT_URI || "http://localhost:4000/auth/callback";
 const SCOPES = ["identify", "guilds", "guilds.members.read"];
 
 router.get("/", async (req, res) => {
