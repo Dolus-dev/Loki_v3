@@ -2,24 +2,18 @@
 :root {
 	--background: #ffffff;
 	--foreground: #171717;
-}
-
-:root[data-theme="light"] {
-	--hover-bg: hsla(129.1, 64.7%, 10%, 0.15);
-	--theme-toggler-handle-bg: #171717;
-	--theme-toggler-bg: var(--color-neutral-300);
-}
-
-:root[data-theme="dark"] {
 	--hover-bg: hsla(129.1, 64.7%, 10%, 0.25);
 	--theme-toggler-handle-bg: #ffffff;
 	--theme-toggler-bg: var(--color-neutral-500);
+	--text-hover: var(--color-brand-600);
+	--text: var(--color-neutral-100);
 }
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 @theme {
 	/* Colours */
+
 	--color-brand-50: hsl(127.5 61.5% 94.9%);
 	--color-brand-100: hsl(129.1 64.7% 80%);
 	--color-brand-200: hsl(127.5 62.7% 70%);

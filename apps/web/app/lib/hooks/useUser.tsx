@@ -18,6 +18,7 @@ type UserContextType = {
 	user: User | null;
 	isLoading: boolean;
 	error: boolean;
+	mutate: () => void;
 };
 
 const API_URL = process.env.BASE_API_URL || "http://localhost:4000";
@@ -42,26 +43,20 @@ const fetcher = async (url: string) => {
 };
 
 export function UserProvider({ children }: { children: ReactNode }) {
-	const { data, error, isLoading } = useSWR<User>(
+	const { data, error, isLoading, mutate } = useSWR<User>(
 		`${API_URL}/users/@me`,
 		fetcher,
 		{
 			revalidateOnFocus: false,
+
 			errorRetryCount: 1,
 		}
 	);
 
 	const user = data ?? null;
-	useEffect(() => {
-		if (!isLoading) {
-			console.log("UserProvider updated:", { user, error });
-		}
-	}, [user, error, isLoading]);
-
-	console.log("UserProvider state:", { user, isLoading, error });
 
 	return (
-		<userContext.Provider value={{ user, isLoading, error }}>
+		<userContext.Provider value={{ user, isLoading, error, mutate }}>
 			{children}
 		</userContext.Provider>
 	);

@@ -6,6 +6,7 @@ import isValidTheme from "./lib/validateTheme";
 import { UserProvider } from "./lib/hooks/useUser";
 import RootLayoutHeader from "./components/Root Layout Header/Header";
 import { Hanuman } from "next/font/google";
+import { PostHogProvider } from "./postHogProvider";
 
 const hanuman = Hanuman({ subsets: ["latin"] });
 
@@ -21,34 +22,26 @@ export default async function RootLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
-	const cookieStore = await cookies();
-
-	let theme: Theme = Theme.Light;
-	if (cookieStore.has("theme")) {
-		const storedTheme = cookieStore.get("theme")?.value;
-		if (!isValidTheme(storedTheme)) theme = Theme.Light;
-		else theme = storedTheme;
-	}
-
 	return (
 		<html
 			lang="en"
 			className={`scroll-smooth min-w-dvw ${hanuman.className}`}
-			data-scroll-behavior="smooth"
-			data-theme={theme === Theme.Dark ? "dark" : "light"}>
+			data-scroll-behavior="smooth">
 			<body
-				className={`antialiased relative  flex flex-col min-h-dvh transition-colors duration-300 bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100`}>
-				<UserProvider>
-					<RootLayoutHeader />
-					{children}
-					<footer>
-						<div className="w-full h-20 bg-brand-900 dark:bg-brand-900 absolute bottom-0  flex items-center justify-center">
-							<p className="text-neutral-300 dark:text-neutral-300">
-								© 2024 Loki App. All rights reserved.
-							</p>
-						</div>
-					</footer>
-				</UserProvider>
+				className={`antialiased relative  flex flex-col min-h-dvh transition-colors duration-300 bg-neutral-900 text-neutral-100`}>
+				<PostHogProvider>
+					<UserProvider>
+						<RootLayoutHeader />
+						{children}
+						<footer>
+							<div className="w-full h-20 bg-brand-900 dark:bg-brand-900 absolute bottom-0  flex items-center justify-center">
+								<p className="text-neutral-300 ">
+									© 2024 Loki App. All rights reserved.
+								</p>
+							</div>
+						</footer>
+					</UserProvider>
+				</PostHogProvider>
 			</body>
 		</html>
 	);
