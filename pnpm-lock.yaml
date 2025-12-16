@@ -20,6 +20,9 @@ importers:
 
   apps/Discord Bot:
     dependencies:
+      '@commandkit/analytics':
+        specifier: 1.2.0-rc.12
+        version: 1.2.0-rc.12
       commandkit:
         specifier: 1.2.0-rc.12
         version: 1.2.0-rc.12(rollup@3.29.5)(typescript@5.9.3)
@@ -121,6 +124,9 @@ importers:
       posthog-js:
         specifier: ^1.306.2
         version: 1.306.2
+      posthog-node:
+        specifier: ^5.17.2
+        version: 5.17.2
       react:
         specifier: ^19.2.0
         version: 19.2.0
@@ -362,6 +368,9 @@ packages:
   '@babel/types@7.28.5':
     resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
     engines: {node: '>=6.9.0'}
+
+  '@commandkit/analytics@1.2.0-rc.12':
+    resolution: {integrity: sha512-4w2nkw78YOsLh4KXSvZ0o+JI75NVlKjuHDuqXtkmlGPYMzeb+8WKH3sytffDPXLUFbhDsN79xaOyHnpto0vt/Q==}
 
   '@discordjs/builders@1.13.1':
     resolution: {integrity: sha512-cOU0UDHc3lp/5nKByDxkmRiNZBpdp0kx55aarbiAfakfKJHlxv/yFW1zmIqCAmwH5CRlrH9iMFKJMpvW4DPB+w==}
@@ -2565,6 +2574,10 @@ packages:
   posthog-js@1.306.2:
     resolution: {integrity: sha512-zBEjDvUs5RNTWbyHVjbL16Oigm2buFG2PQRRMC46hfL2HSh+8//zMD5gV3etxkUhjjTltKubK3mkqONMldw9Yg==}
 
+  posthog-node@5.17.2:
+    resolution: {integrity: sha512-lz3YJOr0Nmiz0yHASaINEDHqoV+0bC3eD8aZAG+Ky292dAnVYul+ga/dMX8KCBXg8hHfKdxw0SztYD5j6dgUqQ==}
+    engines: {node: '>=20'}
+
   preact@10.28.0:
     resolution: {integrity: sha512-rytDAoiXr3+t6OIP3WGlDd0ouCUG1iCWzkcY3++Nreuoi17y6T5i/zRhe6uYfoVcxq6YU+sBtJouuRDsq8vvqA==}
 
@@ -3414,6 +3427,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@commandkit/analytics@1.2.0-rc.12': {}
 
   '@discordjs/builders@1.13.1':
     dependencies:
@@ -5652,6 +5667,10 @@ snapshots:
       fflate: 0.4.8
       preact: 10.28.0
       web-vitals: 4.2.4
+
+  posthog-node@5.17.2:
+    dependencies:
+      '@posthog/core': 1.7.1
 
   preact@10.28.0: {}
 

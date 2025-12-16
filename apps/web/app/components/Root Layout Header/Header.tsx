@@ -13,6 +13,7 @@ import {
 	motion,
 } from "motion/react";
 import { usePathname } from "next/navigation";
+import posthog from "posthog-js";
 
 const MotionLink = motion.create(Link);
 
@@ -61,7 +62,13 @@ export default function RootLayoutHeader() {
 			<div className="flex flex-row items-center justify-between w-[75%] mx-auto py-2">
 				<Link
 					href={"/"}
-					className="  flex flex-row  gap-2 items-center ">
+					className="  flex flex-row  gap-2 items-center "
+					onClick={() =>
+						posthog.capture("button-clicked", {
+							button_name: "Logo",
+							location: "Header",
+						})
+					}>
 					<Image
 						src="/logo.png"
 						alt="Logo"
