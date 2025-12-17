@@ -9,7 +9,6 @@ const INITIAL_DELAY_MS = 1000; // 1 second
 
 async function addGuildWithRetry(guild: { id: string; name: string; icon: string | null }, retries = 1): Promise<void> {
   try {
-    Logger.log(backendUrl);
     const res = await fetch(`${backendUrl}/guilds`, {
       method: 'POST',
       headers: {
@@ -22,7 +21,6 @@ async function addGuildWithRetry(guild: { id: string; name: string; icon: string
         iconHash: guild.icon,
       }),
     });
-    Logger.log(res);
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
