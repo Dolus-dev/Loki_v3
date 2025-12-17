@@ -37,7 +37,10 @@ export class Guild {
 	@OneToMany(() => AuditLog, (auditLog) => auditLog.guild, { eager: false })
 	auditLogs!: AuditLog[];
 
-	@OneToOne(() => DashboardSettings, { cascade: true, eager: false })
+	@OneToOne(() => DashboardSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	dashboardSettings!: DashboardSettings;
 
 	@OneToOne(() => MuteSettings, { cascade: true, eager: false })
