@@ -112,7 +112,30 @@ export async function fetchCurrentUserGuilds(
 	});
 
 	if (!res.ok) {
-		throw new Error(`Failed to fetch user guilds: ${res.statusText}`);
+		const errorData = await res.json();
+		console.error("Error fetching user guilds:", errorData);
+		throw new Error(`Failed to fetch user guilds: ${res.statusText}. }`);
+	}
+	const data = await res.json();
+	return data;
+}
+
+export async function fetchCurrentGuildMember(
+	accessToken: string,
+	guildId: string
+): Promise<any> {
+	const res = await fetch(
+		`https://discord.com/api/v10/users/@me/guilds/${guildId}/member`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+			},
+		}
+	);
+
+	if (!res.ok) {
+		throw new Error(`Failed to fetch current guild member: ${res.statusText}`);
 	}
 	const data = await res.json();
 	return data;
