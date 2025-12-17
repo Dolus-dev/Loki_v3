@@ -1,6 +1,11 @@
 const nextConfig = {
 	images: {
-		remotePatterns: [new URL("https://cdn.discordapp.com/**")],
+		remotePatterns: [
+			{
+				protocol: "https",
+				hostname: "cdn.discordapp.com",
+			},
+		],
 	},
 	async rewrites() {
 		return [
