@@ -58,7 +58,7 @@ export default function RootLayoutHeader() {
 	}, [isDropdownOpen]);
 
 	return (
-		<header className="  z-10 w-full sticky gap-2 items-center justify-center top-0 bg-neutral-800 py-2 shadow-md shadow-neutral-700 flex flex-row ">
+		<header className="  z-10 w-full sticky gap-2 items-center justify-center top-0 bg-neutral-800 py-2  flex flex-row ">
 			<div className="flex flex-row items-center justify-between w-[75%] mx-auto py-2">
 				<Link
 					href={"/"}
@@ -81,7 +81,7 @@ export default function RootLayoutHeader() {
 					</span> */}
 				</Link>
 
-				{pathname !== "/dashboard" && (
+				{!pathname.startsWith("/dashboard") && (
 					<motion.nav
 						layout
 						className="flex flex-row gap-6 relative text-lg font-medium"
