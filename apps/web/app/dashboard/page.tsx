@@ -76,10 +76,10 @@ export default function ServerSelectorDashboardPage() {
 										<Link
 											className="bg-neutral-700 p-2 rounded-md hover:bg-neutral-600 transition h-10 "
 											href={
-												//TODO: Change href to bot invite link
+												//TODO: Change href to bot invite link if guild is not set up
 												guild.setUp
-													? `/dashboard/${guild.id}`
-													: `/dashboard/${guild.id}`
+													? `/dashboard/${guild.id}/home`
+													: `/dashboard/${guild.id}/home`
 											}>
 											{guild.setUp ? "Manage" : "Add to Server"}
 										</Link>
