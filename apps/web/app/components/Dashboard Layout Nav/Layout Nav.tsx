@@ -27,6 +27,7 @@ import {
 	FaStar,
 	FaMicrophone,
 	FaUserPlus,
+	FaTrophy,
 } from "react-icons/fa";
 import {
 	FaHouse,
@@ -71,7 +72,7 @@ export default function DashboardLayoutNav() {
 			</div>
 
 			<motion.button
-				className="flex flex-row gap-4 cursor-pointer items-center relative px-4 py-1 hover:bg-neutral-600/30 transition duration-300"
+				className="flex flex-row gap-4 cursor-pointer items-center relative px-4 py-2 hover:bg-neutral-600/30 transition duration-300"
 				onClick={() => {
 					setIsCoreOpen(!isCoreOpen);
 					setIsCustomOpen(false);
@@ -102,12 +103,12 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isCoreOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-pointer hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-pointer hover:bg-neutral-600/30 transition duration-300">
 								<FaGear className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Dashboard Access</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaDatabase className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Dashboard Logs</span>
 							</div>
@@ -127,7 +128,7 @@ export default function DashboardLayoutNav() {
 					}}
 					layout
 					key="custom-command-parent"
-					className="flex flex-row gap-4 px-4 py-1 relative  items-center hover:bg-neutral-600/30 transition duration-300">
+					className="flex flex-row gap-4 px-4 py-2 relative  items-center hover:bg-neutral-600/30 transition duration-300">
 					<FaLaptopCode className="size-5 shrink-0 " />
 					<span className="">Custom Commands</span>
 					<motion.div
@@ -149,12 +150,12 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isCustomOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaCode className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Commands</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaDatabase className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Database</span>
 							</div>
@@ -174,7 +175,7 @@ export default function DashboardLayoutNav() {
 					}}
 					layout
 					key="Moderation Parent"
-					className="flex flex-row gap-4 px-4 py-1 relative cursor-pointer  items-center hover:bg-neutral-600/30 transition duration-300">
+					className="flex flex-row gap-4 px-4 py-2 relative cursor-pointer  items-center hover:bg-neutral-600/30 transition duration-300">
 					<FaShieldAlt className="size-5 shrink-0 " />
 					<span>Moderation</span>
 					<motion.div
@@ -196,24 +197,24 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isModerationOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaHammer className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Moderation</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaRobot className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Basic Automod</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaRobot className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Advanced Automod</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaDatabase className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Logging</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaIdCard className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Verification</span>
 							</div>
@@ -233,7 +234,7 @@ export default function DashboardLayoutNav() {
 					}}
 					layout
 					key="Notifications & Feeds Parent"
-					className="flex flex-row gap-4 px-4 py-1 relative cursor-pointer items-center hover:bg-neutral-600/30 transition duration-300">
+					className="flex flex-row gap-4 px-4 py-2 relative cursor-pointer items-center hover:bg-neutral-600/30 transition duration-300">
 					<MdOutlineRssFeed className="size-5 shrink-0 " />
 					<span>Notifications & Feeds</span>
 					<motion.div
@@ -255,28 +256,28 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isFeedsOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaBellConcierge className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>General</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaReddit className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Reddit</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaVideo className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Streaming</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaYoutube className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Youtube</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2	 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaRss className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>RSS Feeds</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaTwitch className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Twitch</span>
 							</div>
@@ -296,7 +297,7 @@ export default function DashboardLayoutNav() {
 					}}
 					layout
 					key="Roles Parent"
-					className="flex flex-row gap-4 px-4 py-1 relative cursor-pointer items-center 	hover:bg-neutral-600/30 transition duration-300">
+					className="flex flex-row gap-4 px-4 py-2 relative cursor-pointer items-center 	hover:bg-neutral-600/30 transition duration-300">
 					<FaTags className="size-5 shrink-0 " />
 					<span>Roles</span>
 					<motion.div
@@ -318,16 +319,16 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isRolesOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30 ">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30 ">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaUserPlus className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Autorole</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaTags className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Role Commands</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaMicrophone className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Voice Roles</span>
 							</div>
@@ -347,7 +348,7 @@ export default function DashboardLayoutNav() {
 						setIsFunOpen(false);
 					}}
 					key="Tools & Utilities Parent"
-					className="flex flex-row gap-4 px-4 py-1 relative cursor-pointer items-center hover:bg-neutral-600/30 transition duration-300">
+					className="flex flex-row gap-4 px-4 py-2 relative cursor-pointer items-center hover:bg-neutral-600/30 transition duration-300">
 					<FaToolbox className="size-5 shrink-0 " />
 					<span>Tools & Utilities</span>
 					<motion.div
@@ -369,8 +370,8 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isToolsOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30 ">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30 ">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaTicket className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Ticket System</span>
 							</div>
@@ -390,7 +391,7 @@ export default function DashboardLayoutNav() {
 					}}
 					layout
 					key="Fun Parent"
-					className="flex flex-row gap-4 px-4 py-1 relative cursor-pointer items-center hover:bg-neutral-600/30 transition duration-300">
+					className="flex flex-row gap-4 px-4 py-2 relative cursor-pointer items-center hover:bg-neutral-600/30 transition duration-300">
 					<IoHappy className="size-5 shrink-0 " />
 					<span>Fun</span>
 					<motion.div
@@ -412,14 +413,18 @@ export default function DashboardLayoutNav() {
 						className="flex-col flex  overflow-hidden text-sm"
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isToolsOpen}>
-						<div className="flex flex-col py-1 bg-neutral-900/30 ">
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+						<div className="flex flex-col  bg-neutral-900/30 ">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaBoxOpen className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Throw Command</span>
 							</div>
-							<div className="flex flex-row gap-4 py-1.5 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaStar className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Starboard</span>
+							</div>
+							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+								<FaTrophy className="size-5 shrink-0 ml-9 pb-0.5" />
+								<span>Levels</span>
 							</div>
 						</div>
 					</motion.div>
