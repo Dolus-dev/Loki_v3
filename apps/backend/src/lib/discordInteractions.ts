@@ -1,4 +1,10 @@
-import { APIGuild, APIUser, RESTPostOAuth2AccessTokenResult } from "discord.js";
+import {
+	APIGuild,
+	APIGuildChannel,
+	APIRole,
+	APIUser,
+	RESTPostOAuth2AccessTokenResult,
+} from "discord.js";
 
 /**
  *  Exchanges an authorization code for an access token
@@ -138,5 +144,69 @@ export async function fetchCurrentGuildMember(
 		throw new Error(`Failed to fetch current guild member: ${res.statusText}`);
 	}
 	const data = await res.json();
+	return data;
+}
+
+export async function fetchGuildRoles(
+	guildId: string
+): Promise<APIGuild["roles"]> {
+	const res = await fetch(
+		`https://discord.com/api/v10/guilds/${guildId}/roles`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: `Bot ${process.env.BOT_TOKEN!}`,
+			},
+		}
+	);
+
+	if (!res.ok) {
+		const retryAfter = res.headers.get("retry-after");
+		if (retryAfter) {
+			console.warn(
+				`Rate limited when fetching roles for guild ${guildId}. Retrying after ${retryAfter} seconds.`
+			);
+			await new Promise((resolve) =>
+				setTimeout(resolve, parseInt(retryAfter) * 1000)
+			);
+			return fetchGuildRoles(guildId); // Retry after waiting
+		} else {
+			throw new Error(`Failed to fetch guild roles: ${res.statusText}`);
+		}
+	}
+
+	const data: APIRole[] = await res.json();
+	return data;
+}
+
+export async function fetchGuildChannels(
+	guildId: string
+): Promise<APIGuildChannel[]> {
+	const res = await fetch(
+		`https://discord.com/api/v10/guilds/${guildId}/channels`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: `Bot ${process.env.BOT_TOKEN!}`,
+			},
+		}
+	);
+
+	if (!res.ok) {
+		const retryAfter = res.headers.get("retry-after");
+		if (retryAfter) {
+			console.warn(
+				`Rate limited when fetching channels for guild ${guildId}. Retrying after ${retryAfter} seconds.`
+			);
+			await new Promise((resolve) =>
+				setTimeout(resolve, parseInt(retryAfter) * 1000)
+			);
+			return fetchGuildChannels(guildId); // Retry after waiting
+		} else {
+			throw new Error(`Failed to fetch guild channels: ${res.statusText}`);
+		}
+	}
+
+	const data: APIGuildChannel[] = await res.json();
 	return data;
 }
