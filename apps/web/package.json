@@ -15,6 +15,7 @@
     "@mdi/react": "^1.6.1",
     "@repo/ui": "workspace:*",
     "@tailwindcss/postcss": "^4.1.17",
+    "discord-api-types": "^0.38.37",
     "motion": "^12.23.26",
     "next": "^16.0.10",
     "postcss": "^8.5.6",
