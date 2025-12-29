@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@plugin 'tailwind-scrollbar' {
+	nocompatible: true;
+	preferredstrategy: "pseudoelements";
+}
+
 :root {
 	--background: #ffffff;
 	--foreground: #171717;
