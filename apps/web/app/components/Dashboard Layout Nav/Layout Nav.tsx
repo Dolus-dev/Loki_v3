@@ -1,7 +1,8 @@
 "use client";
 import { ChevronDownIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion } from "motion/react";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { useParams, usePathname } from "next/navigation";
 import { useState } from "react";
 import {
 	FaDatabase,
@@ -51,6 +52,7 @@ export default function DashboardLayoutNav() {
 	const [isFunOpen, setIsFunOpen] = useState(false);
 
 	const pathname = usePathname();
+	const { guildId } = useParams();
 
 	console.log(pathname.endsWith("/home"));
 	return (
@@ -58,14 +60,16 @@ export default function DashboardLayoutNav() {
 			layout
 			layoutScroll
 			transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-			className="flex flex-col bg-neutral-800/90 w-75  left-0 h-screen overflow-y-auto top-18 fixed  text-neutral-200 text-sm text-nowrap">
+			className="flex flex-col bg-neutral-800/90 w-75 shrink-0 h-[90vh] overflow-y-auto   text-neutral-200 text-sm text-nowrap">
 			{/* Navigation items here */}
 
 			<div className="flex flex-row gap-4 mb-4 mt-4 justify-center text-sm font-semibold">
-				<div className="flex flex-row gap-2 px-4 py-1 items-center bg-neutral-600/50 rounded-2xl border-neutral-200/50 border">
+				<Link
+					href={`/dashboard/${guildId}/home`}
+					className="flex flex-row gap-2 px-4 py-1 items-center bg-neutral-600/50 rounded-2xl border-neutral-200/50 border">
 					<FaHouse className="size-5 shrink-0 " />
 					<span className="mt-1">Home</span>
-				</div>
+				</Link>
 				<div className="p-2 bg-neutral-600/50 rounded-2xl border-neutral-200/30 border cursor-pointer hover:bg-neutral-600/70 transition-colors">
 					<FaArrowRotateRight className="size-4 shrink-0   " />
 				</div>
@@ -104,10 +108,12 @@ export default function DashboardLayoutNav() {
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isCoreOpen}>
 						<div className="flex flex-col  bg-neutral-900/30">
-							<div className="flex flex-row gap-4 py-2 items-center cursor-pointer hover:bg-neutral-600/30 transition duration-300">
+							<Link
+								href={`/dashboard/${guildId}/core/dashboard-access-control`}
+								className="flex flex-row gap-4 py-2 items-center cursor-pointer hover:bg-neutral-600/30 transition duration-300">
 								<FaGear className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Dashboard Access</span>
-							</div>
+							</Link>
 							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaDatabase className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Dashboard Logs</span>
@@ -414,10 +420,12 @@ export default function DashboardLayoutNav() {
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isToolsOpen}>
 						<div className="flex flex-col  bg-neutral-900/30 ">
-							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+							<Link
+								href={`/dashboard/${guildId}/fun/throw-command`}
+								className="flex flex-row gap-4 py-2 items-center cursor-pointer  hover:bg-neutral-600/30 transition duration-300">
 								<FaBoxOpen className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Throw Command</span>
-							</div>
+							</Link>
 							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
 								<FaStar className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Starboard</span>

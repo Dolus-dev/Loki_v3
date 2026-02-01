@@ -24,11 +24,4 @@ export class DashboardSettings {
 
 	@Column({ type: "varchar", array: true, default: [] })
 	rolesWithDashboardEditAccess!: string[];
-
-	@BeforeInsert()
-	setId() {
-		if (this.guild && this.guild.id) {
-			this.id = this.guild.id;
-		}
-	}
 }

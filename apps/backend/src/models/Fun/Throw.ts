@@ -19,4 +19,10 @@ export class ThrowCommand {
 
 	@Column({ type: "integer", default: 0 })
 	cooldownSeconds!: number;
+
+	@Column({ type: "varchar", array: true, default: [] })
+	whitelistedChannels!: string[];
+
+	@Column({ type: "varchar", array: true, default: [] })
+	blacklistedChannels!: string[];
 }

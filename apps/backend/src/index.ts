@@ -23,6 +23,37 @@ import { WarnSettings } from "./models/Moderation/Action Settings/WarnSettings";
 import { StarboardSettings } from "./models/Fun/Starboard";
 import { ThrowCommand } from "./models/Fun/Throw";
 
+import { createClient, createClientPool } from "redis";
+
+export const redisClient = createClient(
+	{
+		RESP: 3,
+		username: "default",
+		password: process.env.REDIS_PASSWORD!,
+		socket: {
+			host: "redis-10039.c258.us-east-1-4.ec2.cloud.redislabs.com",
+			port: 10039,
+		},
+	}
+	// {
+	// 	clientSideCache: {
+	// 		ttl: 10000,
+	// 		maxEntries: 1000,
+	// 		evictPolicy: "LRU",
+	// 	},
+	// 	minimum: 5,
+	// }
+);
+
+(async () => {
+	redisClient.on("error", (err) => console.error("Redis Client Error", err));
+	redisClient.on("connect", () => console.log("Connecting to Redis server"));
+	redisClient.on("ready", () => console.log("Connected to Redis server"));
+	await redisClient.connect();
+
+	await redisClient.ping();
+})();
+
 const app = express();
 app.use(cookieParser());
 app.use(express.json());

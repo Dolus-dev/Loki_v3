@@ -3,6 +3,9 @@
 import Link from "next/link";
 import useSWR from "swr";
 import Image from "next/image";
+import { useUser } from "../lib/hooks/useUser";
+import { redirect } from "next/navigation";
+import { useEffect } from "react";
 
 const fetcher = async (url: string) => {
 	const res = await fetch(url, {
@@ -19,6 +22,12 @@ const fetcher = async (url: string) => {
 const backendUrl = process.env.BASE_API_URL ?? "http://localhost:4000";
 
 export default function ServerSelectorDashboardPage() {
+	const { user, isLoading: userLoading } = useUser();
+
+	if (!userLoading && !user) {
+		redirect("/login");
+	}
+
 	const { data, error, isLoading } = useSWR<
 		{ id: string; name: string; icon: string | null; setUp: boolean }[]
 	>(`${backendUrl}/users/@me/guilds`, fetcher);
@@ -26,7 +35,7 @@ export default function ServerSelectorDashboardPage() {
 	return (
 		<>
 			{data && (
-				<section className="grid grid-cols-3 content-evenly justify-items-center place-self-center gap-x-14 relative mt-10">
+				<section className="grid  grid-cols-2 xl:grid-cols-3 content-evenly justify-items-center place-self-center gap-x-14 relative mt-10">
 					{data
 						.sort((a, b) => a.name.localeCompare(b.name))
 						.map((guild) => {

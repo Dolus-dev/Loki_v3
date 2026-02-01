@@ -32,7 +32,7 @@ export default async function RootLayout({
 				<PostHogProvider>
 					<UserProvider>
 						<RootLayoutHeader />
-						{children}
+						<div className="">{children}</div>
 						<footer>
 							<div className="w-full h-20 bg-brand-900 dark:bg-brand-900 fixed bottom-0  flex items-center justify-center">
 								<p className="text-neutral-300 ">

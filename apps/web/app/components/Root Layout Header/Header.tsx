@@ -59,7 +59,7 @@ export default function RootLayoutHeader() {
 
 	return (
 		<header className="  z-10 w-full sticky gap-2 items-center justify-center top-0 bg-neutral-800 py-2  flex flex-row ">
-			<div className="flex flex-row items-center justify-between w-[75%] mx-auto py-2">
+			<div className="flex flex-row items-center justify-between  2xl:max-w-[1800px] w-[95%] mx-auto py-2">
 				<Link
 					href={"/"}
 					className="  flex flex-row  gap-2 items-center "

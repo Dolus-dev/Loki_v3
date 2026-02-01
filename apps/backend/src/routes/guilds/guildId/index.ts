@@ -1,5 +1,5 @@
 import express from "express";
-import { AppDataSource } from "../../..";
+import { AppDataSource, redisClient } from "../../..";
 import { Guild } from "../../../models/Guild";
 import { requireAuth } from "../../../lib/requireAuth - Middleware";
 import { APIGuild } from "discord.js";
@@ -8,11 +8,16 @@ import { ModerationEvents } from "../../../models/Moderation/ModerationEvents";
 import { MoreThan } from "typeorm";
 import { router as settingsRouter } from "./settings/index";
 import { router as moderationRouter } from "./moderation/index";
+import { DashboardSettings } from "../../../models/DashboardSettings";
+import { router as rolesRouter } from "./roles/index";
+import { router as channelsRouter } from "./channels/index";
 
 export const router = express.Router({ mergeParams: true });
 
 router.use("/settings", settingsRouter);
 router.use("/moderation", moderationRouter);
+router.use("/roles", rolesRouter);
+router.use("/channels", channelsRouter);
 
 router.get(
 	"/",
@@ -20,8 +25,20 @@ router.get(
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 
-		let guild: APIGuild | null = null;
+		let guild: APIGuild | GuildObject | null = null;
 
+		const key = "guild:base:" + guildId;
+
+		const value = await redisClient.get(key);
+
+		if (value) {
+			guild = JSON.parse(value) as GuildObject;
+			console.log("Cache hit for guild:", guildId);
+
+			return res.status(200).send({
+				...guild,
+			});
+		}
 		try {
 			guild = await fetchDiscordGuild(guildId);
 		} catch (error) {
@@ -56,7 +73,7 @@ router.get(
 			}),
 		]).catch(() => [0, 0]);
 
-		return res.status(200).send({
+		const guildObject = {
 			guild: {
 				id: guild.id,
 				name: guild.name,
@@ -73,6 +90,29 @@ router.get(
 				totalModerationEvents: totalEvents,
 				recentModerationEvents: recentEvents,
 			},
+		};
+
+		await redisClient.set(key, JSON.stringify(guildObject), {
+			EX: 300, // Cache for 5 minutes
 		});
+
+		return res.status(200).send(guildObject);
 	}
 );
+
+interface GuildObject {
+	guild: {
+		id: string;
+		name: string;
+		icon: string | null;
+		ownerId: string;
+		memberCount: number | null;
+	};
+	settings: {
+		dashboard: DashboardSettings | null;
+	};
+	statistics: {
+		totalModerationEvents: number;
+		recentModerationEvents: number;
+	};
+}

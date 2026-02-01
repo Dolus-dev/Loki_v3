@@ -1,5 +1,7 @@
 import { Metadata } from "next";
 import DashboardLayoutNav from "../../components/Dashboard Layout Nav/Layout Nav";
+import { useUser } from "../../lib/hooks/useUser";
+import { redirect } from "next/navigation";
 
 // TODO: Add dynamic metadata based on guild ID/Name
 
@@ -14,11 +16,11 @@ export default function DashboardLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<>
-			<div className="flex flex-row relative   ">
+		<div className="relative ">
+			<div className="flex flex-row relative place-self-center w-full 2xl:max-w-[1800px] overflow-hidden  ">
 				<DashboardLayoutNav />
-				<div className="ml-80">{children}</div>
+				<div className="bg-neutral-800/30 w-full ">{children}</div>
 			</div>
-		</>
+		</div>
 	);
 }

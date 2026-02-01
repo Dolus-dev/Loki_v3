@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function Home() {
 	return (
-		<main className="flex flex-col items-center justify-center self-center max-w-full w-full  pb-16 gap-10">
+		<main className="flex flex-col items-center justify-center self-center max-w-full w-full 2xl:w-[50%]  pb-16 gap-10">
 			<section className=" w-full  p-6 flex flex-col items-center justify-center gap-6 ">
 				<div className="grid grid-cols-2 w-full">
 					<div className="w-full  flex flex-col mt-12 items-start   gap-2">

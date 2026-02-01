@@ -1,7 +1,6 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { div } from "motion/react-client";
 import { useEffect, useRef, useState } from "react";
 import { FaChevronDown, FaRegCheckSquare } from "react-icons/fa";
 import { FaX } from "react-icons/fa6";
@@ -64,7 +63,8 @@ export default function MultiSelectMenu(props: MultiSelectProps) {
 					setIsOpen(!isOpen);
 				}}
 				className={`bg-neutral-800 rounded-md flex flex-row p-2 min-h-[42px] cursor-pointer ${className || ""}`}
-				ref={dropdownRef}>
+				// ref={dropdownRef}
+			>
 				{/* Tag Display Area */}
 				<div className="flex flex-wrap gap-2 flex-1">
 					{selectedOptions.length === 0 && (

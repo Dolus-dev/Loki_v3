@@ -4,8 +4,8 @@ import {
 	fetchCurrentGuildMember,
 	fetchCurrentUserGuilds,
 } from "../../../../lib/discordInteractions";
-import { PermissionsBitField } from "discord.js";
-import { AppDataSource } from "../../../..";
+import { APIGuild, PermissionsBitField } from "discord.js";
+import { AppDataSource, redisClient } from "../../../..";
 import { In } from "typeorm";
 import { Guild } from "../../../../models/Guild";
 import { APIGuildMember } from "discord.js";
@@ -15,12 +15,20 @@ export const router = express.Router();
 router.get("/", requireAuth, async (req, res) => {
 	// Logic to get guilds for the authenticated user
 
-	const user = req.session.accessToken;
-	if (!user) {
-		return res.status(401).send({ error: "Unauthorized" });
+	const user = req.session.accessToken!;
+
+	const key = "user:guilds:" + req.session.userId;
+	const value = await redisClient.get(key);
+	let guilds: APIGuild[] | UserGuilds[] | null = null;
+
+	if (value) {
+		guilds = JSON.parse(value) as UserGuilds[];
+		console.log("Cache hit for user guilds:", req.session.userId);
+
+		return res.status(200).send(guilds);
 	}
 
-	const guilds = await fetchCurrentUserGuilds(user);
+	guilds = await fetchCurrentUserGuilds(user);
 	const userGuildIds = guilds.map((g) => g.id);
 	const guildRepository = AppDataSource.getRepository(Guild);
 	const botGuilds = await guildRepository.find({
@@ -70,5 +78,16 @@ router.get("/", requireAuth, async (req, res) => {
 		setUp: botGuildMap.has(guild.id),
 	}));
 
+	await redisClient.set(key, JSON.stringify(simplifiedGuilds), {
+		EX: 300, // Cache for 5 minutes
+	});
+
 	return res.status(200).send(simplifiedGuilds);
 });
+
+interface UserGuilds {
+	id: string;
+	name: string;
+	icon: string | null;
+	setUp: boolean;
+}
