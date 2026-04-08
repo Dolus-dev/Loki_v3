@@ -25,9 +25,9 @@ Previous iterations of Loki are actively deployed and used, with this rewrite fo
 
 Loki v3 is structured as a monorepo using Turborepo and pnpm workspaces, consisting of:
 
-- `apps/bot` — Discord bot (Discord.js)
+- `apps/Discord Bot` — Discord bot (Discord.js)
 - `apps/web` — Web dashboard (frontend)
-- `apps/api` — Backend API server shared by both the bot and dashboard
+- `apps/backend` — Backend API server shared by both the bot and dashboard
 - `packages/` — Shared configs and utilities
 
 The bot communicates with the backend API rather than directly with the database, allowing shared caching of data accessed by both the dashboard and bot.
