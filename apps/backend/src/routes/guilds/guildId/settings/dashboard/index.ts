@@ -2,16 +2,26 @@ import express from "express";
 import { DashboardSettings } from "../../../../../models/DashboardSettings";
 import { AppDataSource, redisClient } from "../../../../..";
 import z, { treeifyError } from "zod";
-import { requireAuth } from "../../../../../lib/requireAuth - Middleware";
+import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
+import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { Guild } from "../../../../../models/Guild";
 
 export const router = express.Router({ mergeParams: true });
+
+const CachedDashboardSettingsSchema = z.object({
+	readAccess: z.array(z.string()),
+	editAccess: z.array(z.string()),
+});
 
 // Retrieve dashboard settings for a guild
 router.get(
 	"/",
 	requireAuth,
-	async (req: express.Request<{ guildId: string }>, res) => {
+	requireGuildSettingsAccess("view"),
+	async (
+		req: express.Request<{ guildId: string }>,
+		res: express.Response,
+	): Promise<express.Response | void> => {
 		const { guildId } = req.params;
 
 		const key = "guild:dashboardSettings:" + guildId;
@@ -20,10 +30,13 @@ router.get(
 		let settings: DashboardSettings | FetchedDashboardSettings | null = null;
 
 		if (value) {
-			settings = JSON.parse(value) as FetchedDashboardSettings;
-			console.log("Cache hit for dashboard settings:", guildId);
-
-			return res.status(200).json(settings);
+			const cachedSettings = CachedDashboardSettingsSchema.safeParse(
+				JSON.parse(value),
+			);
+			if (cachedSettings.success) {
+				console.log("Cache hit for dashboard settings:", guildId);
+				return res.status(200).json(cachedSettings.data);
+			}
 		}
 
 		const guildRepo = AppDataSource.getRepository(Guild);
@@ -37,13 +50,15 @@ router.get(
 
 		await dashRepo.upsert(
 			{ id: guildId },
-			{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+			{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 		);
 
 		settings = await dashRepo.findOneBy({ id: guildId });
 
 		if (!settings) {
-			return res.status(500).send("Failed to retrieve dashboard settings");
+			return res
+				.status(500)
+				.send({ error: "Failed to retrieve dashboard settings" });
 		}
 
 		console.log(settings);
@@ -58,7 +73,7 @@ router.get(
 		});
 
 		return res.status(200).json(returnedSettings);
-	}
+	},
 );
 
 interface FetchedDashboardSettings {
@@ -74,6 +89,7 @@ const patchItems = z.object({
 router.patch(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("edit"),
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const parseResult = patchItems.safeParse(req.body);
@@ -102,7 +118,7 @@ router.patch(
 					}),
 					{
 						EX: 300, // Cache for 5 minutes
-					}
+					},
 				),
 				await dashRepo.upsert(
 					{
@@ -110,7 +126,7 @@ router.patch(
 						rolesWithDashboardViewAccess,
 						rolesWithDashboardEditAccess,
 					},
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 				),
 			]);
 
@@ -120,13 +136,13 @@ router.patch(
 				if (saves[0].status === "rejected") {
 					console.error(
 						"Failed to update cache for dashboard settings:",
-						saves[0].reason
+						saves[0].reason,
 					);
 				}
 				if (saves[1].status === "rejected") {
 					console.error(
 						"Failed to update database for dashboard settings:",
-						saves[1].reason
+						saves[1].reason,
 					);
 				}
 				throw new Error("Failed to update dashboard settings");
@@ -136,5 +152,5 @@ router.patch(
 				.status(500)
 				.json({ error: "Failed to update dashboard settings" });
 		}
-	}
+	},
 );

@@ -1,8 +1,9 @@
 import express from "express";
-import { requireAuth } from "../../../../../lib/requireAuth - Middleware";
+import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { AppDataSource } from "../../../../..";
 import { BanSettings } from "../../../../../models/Moderation/Action Settings/BanSettings";
 import z from "zod";
+import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -11,6 +12,7 @@ export const router = express.Router({ mergeParams: true });
 router.get(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("view"),
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const banSettingsRepo = AppDataSource.getRepository(BanSettings);
@@ -19,17 +21,17 @@ router.get(
 			{
 				guildId: guildId,
 			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true }
+			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
 		);
 
 		const settings = await banSettingsRepo.findOneBy({ guildId });
 
 		if (!settings) {
-			return res.status(500).send("Failed to retrieve ban settings");
+			return res.status(500).send({ error: "Failed to retrieve ban settings" });
 		}
 
 		return res.status(200).json(settings);
-	}
+	},
 );
 
 const patchItems = z.object({
@@ -41,6 +43,7 @@ const patchItems = z.object({
 router.patch(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("edit"),
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const parseResult = patchItems.safeParse(req.body);
@@ -62,11 +65,11 @@ router.patch(
 					evidenceRequired,
 					defaultBanDurationSeconds,
 				},
-				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true }
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
 			);
 			return res.status(204).send();
 		} catch (error) {
 			return res.status(500).json({ error: "Failed to update ban settings" });
 		}
-	}
+	},
 );

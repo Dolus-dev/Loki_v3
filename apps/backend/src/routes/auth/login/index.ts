@@ -1,20 +1,18 @@
 import express from "express";
 import crypto from "crypto";
-
-import "dotenv/config";
+import { env } from "../../../config/env";
 
 export const router = express.Router();
 
-const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
-const REDIRECT_URI =
-	process.env.DISCORD_REDIRECT_URI || "http://localhost:4000/auth/callback";
+const CLIENT_ID = env.DISCORD_CLIENT_ID;
+const REDIRECT_URI = env.DISCORD_REDIRECT_URI;
 const SCOPES = ["identify", "guilds", "guilds.members.read"];
 
 router.get("/", async (req, res) => {
 	const state = crypto.randomBytes(16).toString("hex");
 	res.cookie("auth_state", state, {
 		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
+		secure: env.NODE_ENV === "production",
 		sameSite: "lax",
 	});
 
@@ -27,5 +25,6 @@ router.get("/", async (req, res) => {
 
 	console.log("Redirecting to Discord OAuth2 URL:", authUrl.toString());
 
-	return res.redirect(authUrl.toString());
+	void res.redirect(authUrl.toString());
+	return;
 });

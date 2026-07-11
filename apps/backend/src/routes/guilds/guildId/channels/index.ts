@@ -1,17 +1,24 @@
-import {
-	APIChannel,
-	APIGuild,
-	APIGuildChannel,
-	ChannelType,
-	Snowflake,
-} from "discord.js";
+import { APIGuildChannel, ChannelType, Snowflake } from "discord.js";
 import express from "express";
 import { redisClient } from "../../../..";
 import { fetchGuildChannels } from "../../../../lib/discordInteractions";
-import { requireAuth } from "../../../../lib/requireAuth - Middleware";
+import { requireAuth } from "../../../../lib/Middlewares/requireAuth";
 import z from "zod";
 
 export const router = express.Router({ mergeParams: true });
+
+const CachedChannelsSchema = z.array(
+	z.object({
+		category: z.string(),
+		children: z.array(
+			z.object({
+				id: z.string(),
+				name: z.string(),
+				type: z.enum(ChannelType).optional(),
+			}),
+		),
+	}),
+);
 
 const query = z.object({
 	forceRefresh: z.coerce.boolean().optional().default(false),
@@ -19,8 +26,11 @@ const query = z.object({
 
 router.get(
 	"/",
-	// requireAuth,
-	async (req: express.Request<{ guildId: string }>, res) => {
+	requireAuth,
+	async (
+		req: express.Request<{ guildId: string }>,
+		res: express.Response,
+	): Promise<express.Response | void> => {
 		const { guildId } = req.params;
 
 		const key = "guild:channels:" + guildId;
@@ -38,15 +48,19 @@ router.get(
 			const value = await redisClient.get(key);
 
 			if (value) {
-				channels = JSON.parse(value) as APIGuildChannel[];
-				console.log("Cache hit for guild channels:", guildId);
-				return res.status(200).send(channels);
+				const cachedChannels = CachedChannelsSchema.safeParse(
+					JSON.parse(value),
+				);
+				if (cachedChannels.success) {
+					console.log("Cache hit for guild channels:", guildId);
+					return res.status(200).send(cachedChannels.data);
+				}
 			}
 		}
 
-		channels = (await fetchGuildChannels(guildId)) as APIGuildChannel[];
+		channels = await fetchGuildChannels(guildId);
 
-		const categories = new Map<Snowflake, string>();
+		const categories = new Map<string, string>();
 		const categorizedChannels = new Map<string, ReturnedChannel[]>();
 
 		channels.forEach((channel) => {
@@ -60,7 +74,7 @@ router.get(
 				const channelsInCategory = channels.filter(
 					(channel) =>
 						channel.parent_id === categoryId &&
-						channel.type !== ChannelType.GuildCategory
+						channel.type !== ChannelType.GuildCategory,
 				);
 
 				const simplifiedChannelsInCategory: ReturnedChannel[] =
@@ -72,14 +86,14 @@ router.get(
 						};
 					});
 
-				categorizedChannels.set(
-					categories.get(categoryId)!,
-					simplifiedChannelsInCategory
-				);
+				const categoryName = categories.get(categoryId);
+				if (categoryName) {
+					categorizedChannels.set(categoryName, simplifiedChannelsInCategory);
+				}
 			} else {
 				const uncategorizedChannels = channels.filter(
 					(channel) =>
-						!channel.parent_id && channel.type !== ChannelType.GuildCategory
+						!channel.parent_id && channel.type !== ChannelType.GuildCategory,
 				);
 				const simplifiedUncategorizedChannels: ReturnedChannel[] =
 					uncategorizedChannels.map((channel) => {
@@ -90,15 +104,13 @@ router.get(
 						};
 					});
 
-				categorizedChannels.set(
-					categories.get(categoryId)!,
-					simplifiedUncategorizedChannels
-				);
+				const categoryName = categories.get(categoryId) ?? "Uncategorized";
+				categorizedChannels.set(categoryName, simplifiedUncategorizedChannels);
 			}
 		});
 
 		const returnedChannels: ReturnedChannelGroup[] = Array.from(
-			categorizedChannels.entries()
+			categorizedChannels.entries(),
 		)
 			.map(([category, children]) => ({
 				category,
@@ -114,7 +126,7 @@ router.get(
 			EX: 300, // Cache for 5 minutes
 		});
 		return res.status(200).send(returnedChannels);
-	}
+	},
 );
 
 interface ReturnedChannel {

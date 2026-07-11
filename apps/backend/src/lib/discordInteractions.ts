@@ -1,75 +1,131 @@
 import {
 	APIGuild,
 	APIGuildChannel,
+	APIGuildMember,
 	APIRole,
 	APIUser,
+	ChannelType,
 	RESTPostOAuth2AccessTokenResult,
 } from "discord.js";
+import { env } from "../config/env";
+import { DiscordError } from "./Errors/APIErrorResponse";
+
+const CLIENT_ID = env.DISCORD_CLIENT_ID;
+const CLIENT_SECRET = env.DISCORD_CLIENT_SECRET;
+const REDIRECT_URI = env.DISCORD_REDIRECT_URI;
+
+function extractDiscordErrorDetails(body: unknown, fallback: string) {
+	if (typeof body === "object" && body && "error_description" in body) {
+		return String(
+			(body as { error_description?: string }).error_description ?? fallback,
+		);
+	}
+
+	if (typeof body === "object" && body && "message" in body) {
+		return String((body as { message?: string }).message ?? fallback);
+	}
+	return fallback;
+}
+
+async function throwDiscordError(
+	res: Response,
+	fallback: string,
+): Promise<never> {
+	const body = await res.json().catch(() => null);
+	const details = extractDiscordErrorDetails(body, fallback);
+	throw new DiscordError(res.status, details);
+}
+
+async function fetchWithDiscordRetry(
+	request: () => Promise<Response>,
+	fallback: string,
+): Promise<Response> {
+	const res = await request();
+
+	if (res.ok) {
+		return res;
+	}
+
+	const retryAfter = res.headers.get("retry-after");
+	if (retryAfter) {
+		const delaySeconds = Number.parseFloat(retryAfter);
+		if (!Number.isFinite(delaySeconds) || delaySeconds <= 0) {
+			return await throwDiscordError(res, fallback);
+		}
+
+		console.warn(
+			`Rate limited by Discord. Retrying after ${retryAfter} seconds.`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+		return fetchWithDiscordRetry(request, fallback);
+	}
+
+	return await throwDiscordError(res, fallback);
+}
+
+type DiscordUserGuild = {
+	id: string;
+	name: string;
+	icon: string | null;
+	permissions: string;
+};
+
+type DiscordGuildMember = Pick<APIGuildMember, "roles">;
 
 /**
  *  Exchanges an authorization code for an access token
- * @param code The authorization code received from Discord
+ * @param code The temporary authorization code received from Discord after user authorization
  * @returns The access token result from Discord
  */
 export async function exchangeCodeForToken(
-	code: string
+	code: string,
 ): Promise<RESTPostOAuth2AccessTokenResult> {
-	const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
-	const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET!;
-	const REDIRECT_URI =
-		process.env.DISCORD_REDIRECT_URI || "http://localhost:4000/auth/callback";
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch("https://discord.com/api/v10/oauth2/token", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+				},
+				body: new URLSearchParams({
+					client_id: CLIENT_ID,
+					client_secret: CLIENT_SECRET,
+					grant_type: "authorization_code",
+					code: code,
+					redirect_uri: REDIRECT_URI,
+				}).toString(),
+			}),
+		"Failed to exchange Discord code for token",
+	);
 
-	const res = await fetch("https://discord.com/api/v10/oauth2/token", {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-		},
-		body: new URLSearchParams({
-			client_id: CLIENT_ID,
-			client_secret: CLIENT_SECRET,
-			grant_type: "authorization_code",
-			code: code,
-			redirect_uri: REDIRECT_URI,
-		}).toString(),
-	});
-
-	if (!res.ok) {
-		console.log(await res.text());
-		throw new Error(`Failed to exchange code for token: ${res.statusText}`);
-	}
-
-	const data: RESTPostOAuth2AccessTokenResult = await res.json();
-	return data;
+	return (await res.json()) as RESTPostOAuth2AccessTokenResult;
 }
 
 /**
- * Refreshes an access token using a refresh token
- * @param refreshToken The refresh token previously received from Discord
+ * Uses a previously obtained refresh token to get a new access token
+ * @param refreshToken The refresh token issued by Discord during the initial token exchange or a previous refresh
  * @returns The new access token result from Discord
  */
 export async function refreshToken(
-	refreshToken: string
+	refreshToken: string,
 ): Promise<RESTPostOAuth2AccessTokenResult> {
-	const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
-	const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET!;
-
-	const res = await fetch("https://discord.com/api/v10/oauth2/token", {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-		},
-		body: new URLSearchParams({
-			client_id: CLIENT_ID,
-			client_secret: CLIENT_SECRET,
-			grant_type: "refresh_token",
-			refresh_token: refreshToken,
-		}).toString(),
-	});
-	if (!res.ok) {
-		throw new Error(`Failed to refresh token: ${res.statusText}`);
-	}
-	const data: RESTPostOAuth2AccessTokenResult = await res.json();
-	return data;
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch("https://discord.com/api/v10/oauth2/token", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+				},
+				body: new URLSearchParams({
+					client_id: CLIENT_ID,
+					client_secret: CLIENT_SECRET,
+					grant_type: "refresh_token",
+					refresh_token: refreshToken,
+				}).toString(),
+			}),
+		"Failed to refresh Discord token",
+	);
+	return (await res.json()) as RESTPostOAuth2AccessTokenResult;
 }
 
 /**
@@ -78,135 +134,97 @@ export async function refreshToken(
  * @returns The Discord user data
  */
 export async function fetchDiscordUser(accessToken: string): Promise<APIUser> {
-	const res = await fetch("https://discord.com/api/v10/users/@me", {
-		method: "GET",
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-		},
-	});
-
-	if (!res.ok) {
-		throw new Error(`Failed to fetch Discord user: ${res.statusText}`);
-	}
-	const data = await res.json();
-	return data;
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch("https://discord.com/api/v10/users/@me", {
+				method: "GET",
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
+			}),
+		"Failed to fetch Discord user",
+	);
+	return (await res.json()) as APIUser;
 }
 
 export async function fetchDiscordGuild(guildId: string): Promise<APIGuild> {
-	const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, {
-		method: "GET",
-		headers: {
-			Authorization: `Bot ${process.env.BOT_TOKEN!}`,
-		},
-	});
-
-	if (!res.ok) {
-		throw new Error(`Failed to fetch Discord guild: ${res.statusText}`);
-	}
-	const data = await res.json();
-	return data;
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch(`https://discord.com/api/v10/guilds/${guildId}`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bot ${env.BOT_TOKEN}`,
+				},
+			}),
+		"Failed to fetch Discord guild",
+	);
+	return (await res.json()) as APIGuild;
 }
 
 export async function fetchCurrentUserGuilds(
-	accessToken: string
-): Promise<APIGuild[]> {
-	const res = await fetch(`https://discord.com/api/v10/users/@me/guilds`, {
-		method: "GET",
-		headers: {
-			Authorization: `Bearer ${accessToken}`,
-		},
-	});
-
-	if (!res.ok) {
-		const errorData = await res.json();
-		console.error("Error fetching user guilds:", errorData);
-		throw new Error(`Failed to fetch user guilds: ${res.statusText}. }`);
-	}
-	const data = await res.json();
-	return data;
+	accessToken: string,
+): Promise<DiscordUserGuild[]> {
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch(`https://discord.com/api/v10/users/@me/guilds`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
+			}),
+		"Failed to fetch user guilds",
+	);
+	return (await res.json()) as DiscordUserGuild[];
 }
 
 export async function fetchCurrentGuildMember(
 	accessToken: string,
-	guildId: string
-): Promise<any> {
-	const res = await fetch(
-		`https://discord.com/api/v10/users/@me/guilds/${guildId}/member`,
-		{
-			method: "GET",
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-		}
+	guildId: string,
+): Promise<DiscordGuildMember> {
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch(`https://discord.com/api/v10/users/@me/guilds/${guildId}/member`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+				},
+			}),
+		`Failed to fetch current guild member: ${guildId}`,
 	);
-
-	if (!res.ok) {
-		throw new Error(`Failed to fetch current guild member: ${res.statusText}`);
-	}
-	const data = await res.json();
-	return data;
+	return (await res.json()) as DiscordGuildMember;
 }
 
-export async function fetchGuildRoles(
-	guildId: string
-): Promise<APIGuild["roles"]> {
-	const res = await fetch(
-		`https://discord.com/api/v10/guilds/${guildId}/roles`,
-		{
-			method: "GET",
-			headers: {
-				Authorization: `Bot ${process.env.BOT_TOKEN!}`,
-			},
-		}
+export async function fetchGuildRoles(guildId: string): Promise<APIRole[]> {
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bot ${env.BOT_TOKEN}`,
+				},
+			}),
+		`Failed to fetch guild roles: ${guildId}`,
 	);
-
-	if (!res.ok) {
-		const retryAfter = res.headers.get("retry-after");
-		if (retryAfter) {
-			console.warn(
-				`Rate limited when fetching roles for guild ${guildId}. Retrying after ${retryAfter} seconds.`
-			);
-			await new Promise((resolve) =>
-				setTimeout(resolve, parseInt(retryAfter) * 1000)
-			);
-			return fetchGuildRoles(guildId); // Retry after waiting
-		} else {
-			throw new Error(`Failed to fetch guild roles: ${res.statusText}`);
-		}
-	}
-
-	const data: APIRole[] = await res.json();
-	return data;
+	return (await res.json()) as APIRole[];
 }
 
 export async function fetchGuildChannels(
-	guildId: string
+	guildId: string,
+	channelType?: ChannelType[],
 ): Promise<APIGuildChannel[]> {
-	const res = await fetch(
-		`https://discord.com/api/v10/guilds/${guildId}/channels`,
-		{
-			method: "GET",
-			headers: {
-				Authorization: `Bot ${process.env.BOT_TOKEN!}`,
-			},
-		}
+	const res = await fetchWithDiscordRetry(
+		() =>
+			fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+				method: "GET",
+				headers: {
+					Authorization: `Bot ${env.BOT_TOKEN}`,
+				},
+			}),
+		`Failed to fetch guild channels: ${guildId}`,
 	);
 
-	if (!res.ok) {
-		const retryAfter = res.headers.get("retry-after");
-		if (retryAfter) {
-			console.warn(
-				`Rate limited when fetching channels for guild ${guildId}. Retrying after ${retryAfter} seconds.`
-			);
-			await new Promise((resolve) =>
-				setTimeout(resolve, parseInt(retryAfter) * 1000)
-			);
-			return fetchGuildChannels(guildId); // Retry after waiting
-		} else {
-			throw new Error(`Failed to fetch guild channels: ${res.statusText}`);
-		}
-	}
-
 	const data: APIGuildChannel[] = await res.json();
-	return data;
+	return channelType?.length
+		? data.filter((channel) => channelType.includes(channel.type))
+		: data;
 }

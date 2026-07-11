@@ -2,10 +2,19 @@ import { APIGuild } from "discord.js";
 import express from "express";
 import { redisClient } from "../../../..";
 import { fetchGuildRoles } from "../../../../lib/discordInteractions";
-import { requireAuth } from "../../../../lib/requireAuth - Middleware";
+import { requireAuth } from "../../../../lib/Middlewares/requireAuth";
 import z from "zod";
 
 export const router = express.Router({ mergeParams: true });
+
+const CachedRolesSchema = z.array(
+	z.object({
+		name: z.string(),
+		id: z.string(),
+		color: z.number(),
+		position: z.number(),
+	}),
+);
 
 const query = z.object({
 	forceRefresh: z.coerce.boolean().optional().default(false),
@@ -14,7 +23,10 @@ const query = z.object({
 router.get(
 	"/",
 	requireAuth,
-	async (req: express.Request<{ guildId: string }>, res) => {
+	async (
+		req: express.Request<{ guildId: string }>,
+		res: express.Response,
+	): Promise<express.Response | void> => {
 		const { guildId } = req.params;
 
 		const key = "guild:roles:" + guildId;
@@ -32,9 +44,11 @@ router.get(
 			const value = await redisClient.get(key);
 
 			if (value) {
-				roles = JSON.parse(value) as APIGuild["roles"];
-				console.log("Cache hit for guild roles:", guildId);
-				return res.status(200).send(roles);
+				const cachedRoles = CachedRolesSchema.safeParse(JSON.parse(value));
+				if (cachedRoles.success) {
+					console.log("Cache hit for guild roles:", guildId);
+					return res.status(200).send(cachedRoles.data);
+				}
 			}
 		}
 
@@ -56,7 +70,7 @@ router.get(
 			EX: 300, // Cache for 5 minutes
 		});
 		return res.status(200).send(simplifiedRoles);
-	}
+	},
 );
 
 interface APIRoleSimplified {

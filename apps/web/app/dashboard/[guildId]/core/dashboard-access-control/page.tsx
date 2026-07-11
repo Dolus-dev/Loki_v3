@@ -29,19 +29,16 @@ export default function DashboardAccessPage() {
 		isLoading: rolesLoading,
 	} = useSWR<APIRoleSimplified[]>(
 		`${process.env.BACKEND_API_URL || `http://localhost:4000`}/guilds/${guildId}/roles`,
-		fetcher
+		fetcher,
 	);
 
 	const {
 		data: accessData,
 		error: accessError,
 		isLoading: accessLoading,
-	} = useSWR<{
-		rolesWithDashboardViewAccess: string[];
-		rolesWithDashboardEditAccess: string[];
-	}>(
+	} = useSWR<{ readAccess: string[]; editAccess: string[] }>(
 		`${process.env.BACKEND_API_URL || `http://localhost:4000`}/guilds/${guildId}/settings/dashboard`,
-		fetcher
+		fetcher,
 	);
 
 	const [selectedEditRoles, setSelectedEditRoles] = useState<string[]>([]);
@@ -52,13 +49,9 @@ export default function DashboardAccessPage() {
 	useEffect(() => {
 		if (accessData && !accessLoading) {
 			console.log(accessData);
-			setSelectedEditRoles(accessData.rolesWithDashboardEditAccess || []);
-			setSelectedViewRoles(accessData.rolesWithDashboardViewAccess || []);
-			console.log(
-				"After: ",
-				accessData.rolesWithDashboardEditAccess,
-				accessData.rolesWithDashboardViewAccess
-			);
+			setSelectedEditRoles(accessData.editAccess || []);
+			setSelectedViewRoles(accessData.readAccess || []);
+			console.log("After: ", accessData.editAccess, accessData.readAccess);
 		}
 	}, [accessData]);
 
@@ -145,7 +138,7 @@ export default function DashboardAccessPage() {
 									rolesWithDashboardViewAccess: [...selectedViewRoles],
 									rolesWithDashboardEditAccess: [...selectedEditRoles],
 								}),
-							}
+							},
 						);
 
 						if (!res.ok) {

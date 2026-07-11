@@ -1,10 +1,10 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import "dotenv/config";
 import { DataSource } from "typeorm";
 import "reflect-metadata";
 import { router as baseRouter } from "./routes/base-router";
+import { env } from "./config/env";
 
 import { User } from "./models/User";
 import { ModerationEvents } from "./models/Moderation/ModerationEvents";
@@ -29,12 +29,12 @@ export const redisClient = createClient(
 	{
 		RESP: 3,
 		username: "default",
-		password: process.env.REDIS_PASSWORD!,
+		password: env.REDIS_PASSWORD,
 		socket: {
-			host: "redis-10039.c258.us-east-1-4.ec2.cloud.redislabs.com",
-			port: 10039,
+			host: env.REDIS_HOST,
+			port: env.REDIS_PORT,
 		},
-	}
+	},
 	// {
 	// 	clientSideCache: {
 	// 		ttl: 10000,
@@ -60,34 +60,32 @@ app.use(express.json());
 
 app.use(
 	session({
-		secret: process.env.SESSION_SECRET || "DevelopmentSecret",
+		secret: env.SESSION_SECRET,
 		resave: false,
 		saveUninitialized: false,
 		cookie: {
 			httpOnly: true,
-			secure: process.env.NODE_ENV === "production",
+			secure: env.NODE_ENV === "production",
 			sameSite: "strict",
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
 		},
-	})
+	}),
 );
 
 app.use(
 	cors({
 		credentials: true,
-		origin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
-	})
+		origin: env.FRONTEND_ORIGIN,
+	}),
 );
 
 app.use(baseRouter);
 
-const PORT = process.env.PORT || 4000;
+const PORT = env.PORT;
 
 export const AppDataSource = new DataSource({
 	type: "postgres",
-	url:
-		// process.env.DATABASE_URL ??
-		"postgresql://postgres:cupiddev@localhost:5432/Loki",
+	url: env.DATABASE_URL,
 	// ssl: true,
 	entities: [
 		User,
@@ -106,20 +104,18 @@ export const AppDataSource = new DataSource({
 		StarboardSettings,
 		ThrowCommand,
 	],
-	synchronize: process.env.NODE_ENV !== "production" ? true : false,
-	dropSchema: process.env.NODE_ENV !== "production" ? true : false,
+	synchronize: env.NODE_ENV !== "production" ? true : false,
+	dropSchema: env.NODE_ENV !== "production" ? true : false,
 	logging: false,
 });
 
-async function startServer() {
+async function startServer(): Promise<void> {
 	try {
 		await AppDataSource.initialize();
 		console.log("Data Source has been initialized!");
 
 		app.listen(PORT, () => {
-			console.log(
-				`Server is running on ${process.env.BACKEND_ORIGIN || `http://localhost:${PORT}`}`
-			);
+			console.log(`Server is running on ${env.BACKEND_ORIGIN}`);
 		});
 	} catch (error) {
 		console.error("Error starting server:", error);

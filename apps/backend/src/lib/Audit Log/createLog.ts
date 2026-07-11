@@ -30,13 +30,29 @@ export const AuditAction = {
 			NOTE: "MODERATION_EVENT_DELETE_NOTE",
 		},
 	},
+	GUILD: {
+		UPDATE: {
+			NAME: "GUILD_UPDATE_NAME",
+			ICON: "GUILD_UPDATE_ICON",
+		},
+	},
+	TICKET: {
+		CREATE: "TICKET_CREATE",
+		UPDATE: "TICKET_UPDATE",
+		CLOSE: "TICKET_CLOSE",
+	},
 } as const;
+
+type LeafValues<T> = T extends string
+	? T
+	: T[keyof T] extends infer U
+		? LeafValues<U>
+		: never;
 
 /**
  * Enum chaining type for Audit Actions
  */
-export type AuditAction =
-	(typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]][keyof (typeof AuditAction)[keyof typeof AuditAction][keyof (typeof AuditAction)[keyof typeof AuditAction]]];
+export type AuditAction = LeafValues<typeof AuditAction>;
 
 /**
  * Creats an audit log entry in the database
@@ -48,7 +64,7 @@ export async function createAuditLogEntry(data: {
 	targetUserId?: string | null;
 	guildId: string;
 	details?: string | null;
-}) {
+}): Promise<void> {
 	const { action, userId, targetUserId, guildId, details } = data;
 	const auditLogRepository = AppDataSource.getRepository("AuditLog");
 	const guildRepository = AppDataSource.getRepository("Guild");
@@ -80,4 +96,7 @@ export async function createAuditLogEntry(data: {
 	});
 
 	await auditLogRepository.save(auditLog);
+	// Temporary console log for audit log creation, can be removed later
+	console.log(`Audit log entry created: ${new Date().toUTCString()}`);
+	return;
 }

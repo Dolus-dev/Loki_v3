@@ -6,7 +6,9 @@ import { ModerationEvents } from "../../../../../models/Moderation/ModerationEve
 import {
 	Between,
 	FindOptionsWhere,
+	LessThan,
 	LessThanOrEqual,
+	MoreThan,
 	MoreThanOrEqual,
 } from "typeorm";
 import { Guild } from "../../../../../models/Guild";
@@ -14,7 +16,12 @@ import {
 	AuditAction,
 	createAuditLogEntry,
 } from "../../../../../lib/Audit Log/createLog";
+import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 export const router = express.Router({ mergeParams: true });
+
+const discordSnowflake = z
+	.string()
+	.regex(/^\d{17,20}$/, "Invalid Discord snowflake ID");
 
 const fetchModerationEventsFilters = z.object({
 	eventType: z
@@ -43,14 +50,105 @@ const fetchModerationEventsFilters = z.object({
 		.default("issuedTo"),
 });
 
+const GetGuildModerationEventsQuery = z.object({
+	pageSize: z.coerce
+		.number()
+		.int()
+		.positive()
+		.min(10, "Page size must be at least 10")
+		.max(100, "Page size cannot exceed 100")
+		.default(25),
+	cursor: z.string().optional(),
+	sort: z.enum(["mostRecent", "oldest"]).default("mostRecent"),
+});
+
+const GetUserModerationEventsQuery = GetGuildModerationEventsQuery;
+
+router.get(
+	"/",
+	async (req: express.Request<{ guildId: string }>, res) => {
+		const { guildId } = req.params;
+		const filters = await GetGuildModerationEventsQuery.safeParseAsync(
+			req.query,
+		);
+
+		if (!filters.success) {
+			return res.status(400).send({
+				error: "Invalid query parameters",
+				details: z.treeifyError(filters.error),
+			});
+		}
+
+		const { pageSize, cursor, sort } = filters.data;
+		const eventRepository = AppDataSource.getRepository(ModerationEvents);
+
+		let cursorId: number | undefined;
+
+		if (cursor) {
+			try {
+				cursorId = Number.parseInt(Buffer.from(cursor, "base64").toString("utf-8"), 10);
+				if (!Number.isInteger(cursorId)) {
+					return res.status(400).send({ error: "Invalid cursor format" });
+				}
+			} catch (error) {
+				return res.status(400).send({ error: "Invalid cursor format" });
+			}
+		}
+
+		const queryBuilder = eventRepository
+			.createQueryBuilder("event")
+			.leftJoinAndSelect("event.issuedTo", "issuedTo")
+			.leftJoinAndSelect("event.issuedBy", "issuedBy")
+			.leftJoinAndSelect("event.lastUpdatedBy", "lastUpdatedBy")
+			.leftJoinAndSelect("event.guild", "guild")
+			.where("guild.id = :guildId", { guildId });
+
+		if (cursorId !== undefined) {
+			if (sort === "mostRecent") {
+				queryBuilder.andWhere("event.id < :cursorId", { cursorId });
+			} else {
+				queryBuilder.andWhere("event.id > :cursorId", { cursorId });
+			}
+		}
+
+		queryBuilder.orderBy("event.id", sort === "mostRecent" ? "DESC" : "ASC");
+		queryBuilder.take(pageSize + 1);
+
+		const events = await queryBuilder.getMany();
+		const hasMore = events.length > pageSize;
+		const items = events.slice(0, pageSize);
+		const nextCursor = hasMore
+			? Buffer.from(String(items[items.length - 1].id)).toString("base64")
+			: null;
+
+		return res.status(200).send({
+			data: items,
+			pagination: {
+				pageSize,
+				sort,
+				nextCursor,
+				hasMore,
+			},
+		});
+	},
+);
+
 router.get(
 	"/:userId",
 	async (req: express.Request<{ guildId: string; userId: string }>, res) => {
 		const { userId, guildId } = req.params;
 
-		const filters = await fetchModerationEventsFilters.safeParseAsync(
-			req.query
-		);
+		const guildIdResult = discordSnowflake.safeParse(guildId);
+		if (!guildIdResult.success) {
+			return res.status(400).send({ error: "Invalid guildId format" });
+		}
+
+		const userIdResult = discordSnowflake.safeParse(userId);
+		if (!userIdResult.success) {
+			return res.status(400).send({ error: "Invalid userId format" });
+		}
+
+		const filters = await fetchModerationEventsFilters.safeParseAsync(req.query);
 
 		if (!filters.success) {
 			return res.status(400).send(z.treeifyError(filters.error));
@@ -70,7 +168,7 @@ router.get(
 				id: guildId,
 				name: guildName,
 			},
-			{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+			{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 		);
 
 		const guild = await guildRepository.findOneBy({ id: guildId });
@@ -79,90 +177,107 @@ router.get(
 			return res.status(500).send({ error: "Failed to create/fetch guild" });
 		}
 
-		const whereClause: FindOptionsWhere<ModerationEvents> = {};
+		const pagination = await GetUserModerationEventsQuery.safeParseAsync(req.query);
 
-		switch (fetchType) {
-			case "issuedTo":
-				whereClause.issuedTo = { id: userId };
-				break;
-			case "issuedBy":
-				whereClause.issuedBy = { id: userId };
-				break;
-			case "lastEditedBy":
-				whereClause.lastUpdatedBy = { id: userId };
-				break;
-			case "all": {
-				const queryBuilder = eventRepository
-					.createQueryBuilder("event")
-					.leftJoinAndSelect("event.issuedTo", "issuedTo")
-					.leftJoinAndSelect("event.issuedBy", "issuedBy")
-					.leftJoinAndSelect("event.lastUpdatedBy", "lastUpdatedBy")
-					.leftJoinAndSelect("event.guild", "guild")
-					.where("guild.id = :guildId", { guildId })
-					.andWhere(
-						"(issuedTo.id = :userId OR issuedBy.id = :userId OR lastUpdatedBy.id = :userId)",
-						{ userId }
-					);
+		if (!pagination.success) {
+			return res.status(400).send({
+				error: "Invalid query parameters",
+				details: z.treeifyError(pagination.error),
+			});
+		}
 
-				if (eventType !== "all") {
-					queryBuilder.andWhere("event.eventType = :eventType", { eventType });
+		const { pageSize, cursor, sort } = pagination.data;
+
+		let cursorId: number | undefined;
+
+		if (cursor) {
+			try {
+				cursorId = Number.parseInt(Buffer.from(cursor, "base64").toString("utf-8"), 10);
+				if (!Number.isInteger(cursorId)) {
+					return res.status(400).send({ error: "Invalid cursor format" });
 				}
-
-				if (issuedBefore && issuedAfter) {
-					queryBuilder.andWhere("event.createdAt BETWEEN :after AND :before", {
-						after: issuedAfter,
-						before: issuedBefore,
-					});
-				} else if (issuedBefore) {
-					queryBuilder.andWhere("event.createdAt <= :before", {
-						before: issuedBefore,
-					});
-				} else if (issuedAfter) {
-					queryBuilder.andWhere("event.createdAt >= :after", {
-						after: issuedAfter,
-					});
-				}
-
-				const fetchedEvents = await queryBuilder
-					.orderBy("event.createdAt", "DESC")
-					.getMany();
-
-				return res.status(200).send({ events: fetchedEvents });
+			} catch (error) {
+				return res.status(400).send({ error: "Invalid cursor format" });
 			}
 		}
 
-		whereClause.guild = guild;
+		const queryBuilder = eventRepository
+			.createQueryBuilder("event")
+			.leftJoinAndSelect("event.issuedTo", "issuedTo")
+			.leftJoinAndSelect("event.issuedBy", "issuedBy")
+			.leftJoinAndSelect("event.lastUpdatedBy", "lastUpdatedBy")
+			.leftJoinAndSelect("event.guild", "guild")
+			.where("guild.id = :guildId", { guildId });
+
+		switch (fetchType) {
+			case "issuedTo":
+				queryBuilder.andWhere("issuedTo.id = :userId", { userId });
+				break;
+			case "issuedBy":
+				queryBuilder.andWhere("issuedBy.id = :userId", { userId });
+				break;
+			case "lastEditedBy":
+				queryBuilder.andWhere("lastUpdatedBy.id = :userId", { userId });
+				break;
+			case "all":
+				queryBuilder.andWhere(
+					"(issuedTo.id = :userId OR issuedBy.id = :userId OR lastUpdatedBy.id = :userId)",
+					{ userId },
+				);
+				break;
+		}
 
 		if (eventType !== "all") {
-			whereClause.eventType = eventType;
+			queryBuilder.andWhere("event.eventType = :eventType", { eventType });
 		}
 
 		if (issuedBefore && issuedAfter) {
-			whereClause.createdAt = Between(issuedAfter, issuedBefore);
+			queryBuilder.andWhere("event.createdAt BETWEEN :after AND :before", {
+				after: issuedAfter,
+				before: issuedBefore,
+			});
 		} else if (issuedBefore) {
-			whereClause.createdAt = LessThanOrEqual(issuedBefore);
+			queryBuilder.andWhere("event.createdAt <= :before", {
+				before: issuedBefore,
+			});
 		} else if (issuedAfter) {
-			whereClause.createdAt = MoreThanOrEqual(issuedAfter);
+			queryBuilder.andWhere("event.createdAt >= :after", {
+				after: issuedAfter,
+		});
 		}
 
-		const fetchedEvents = await eventRepository.find({
-			where: whereClause,
-			relations: ["issuedTo", "issuedBy", "lastUpdatedBy", "guild"],
-			order: { createdAt: "DESC" },
-		});
+		if (cursorId !== undefined) {
+			if (sort === "mostRecent") {
+				queryBuilder.andWhere("event.id < :cursorId", { cursorId });
+			} else {
+				queryBuilder.andWhere("event.id > :cursorId", { cursorId });
+			}
+		}
+
+		queryBuilder.orderBy("event.id", sort === "mostRecent" ? "DESC" : "ASC");
+		queryBuilder.take(pageSize + 1);
+
+		const events = await queryBuilder.getMany();
+		const hasMore = events.length > pageSize;
+		const items = events.slice(0, pageSize);
+		const nextCursor = hasMore
+			? Buffer.from(String(items[items.length - 1].id)).toString("base64")
+			: null;
 
 		return res.status(200).send({
-			events: fetchedEvents,
+			data: items,
+			pagination: {
+				pageSize,
+				sort,
+				nextCursor,
+				hasMore,
+			},
 		});
-	}
+	},
 );
 
 const createModerationEvent = z.object({
-	issuedBy: z.coerce
-		.number()
-		.int()
-		.positive()
-		.transform((num) => String(num)),
+	issuedBy: discordSnowflake,
 
 	reason: z
 		.string()
@@ -175,6 +290,7 @@ const createModerationEvent = z.object({
 
 router.post(
 	"/:userId",
+	requireAuth,
 	async (req: express.Request<{ userId: string; guildId: string }>, res) => {
 		const { userId, guildId } = req.params;
 
@@ -182,7 +298,7 @@ router.post(
 		if (!parseResult.success) {
 			return res.status(400).send(z.treeifyError(parseResult.error));
 		}
-		if (!/^\d+$/.test(userId)) {
+		if (!discordSnowflake.safeParse(userId).success) {
 			return res.status(400).send({ error: "Invalid userId format" });
 		}
 
@@ -196,21 +312,21 @@ router.post(
 			guildRepository
 				.upsert(
 					{ id: guildId },
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 				)
 				.then(() => guildRepository.findOneBy({ id: guildId })),
 
 			userRepository
 				.upsert(
 					{ id: userId },
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 				)
 				.then(() => userRepository.findOneBy({ id: userId })),
 
 			userRepository
 				.upsert(
 					{ id: issuedBy },
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 				)
 				.then(() => userRepository.findOneBy({ id: issuedBy })),
 		]);
@@ -234,7 +350,7 @@ router.post(
 			await moderationRepository.save(newEvent);
 
 			console.log(
-				`Moderation event created: ${newEvent.id} against user ${userId}`
+				`Moderation event created: ${newEvent.id} against user ${userId}`,
 			);
 
 			await createAuditLogEntry({
@@ -259,23 +375,23 @@ router.post(
 				.status(500)
 				.send({ error: "Failed to create moderation event" });
 		}
-	}
+	},
 );
 
 const editModerationEvent = z.object({
 	reason: z.string().trim().max(512, "Reason cannot exceed 512 characters"),
 
-	editedBy: z.coerce
-		.number()
-		.int()
-		.positive()
-		.transform((num) => String(num)),
+	editedBy: discordSnowflake,
 });
 
 router.patch(
 	"/:eventId",
 	async (req: express.Request<{ eventId: string; guildId: string }>, res) => {
 		const { eventId, guildId } = req.params;
+
+		if (!discordSnowflake.safeParse(guildId).success) {
+			return res.status(400).send({ error: "Invalid guildId format" });
+		}
 
 		if (!/^\d+$/.test(eventId)) {
 			return res.status(400).send({ error: "Invalid eventId format" });
@@ -295,7 +411,7 @@ router.patch(
 			userRepository
 				.upsert(
 					{ id: editedBy },
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 				)
 				.then(() => userRepository.findOneBy({ id: editedBy })),
 			eventRepository.findOne({
@@ -320,7 +436,7 @@ router.patch(
 			await eventRepository.save(eventToEdit);
 
 			console.log(
-				`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`
+				`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`,
 			);
 
 			await createAuditLogEntry({
@@ -335,7 +451,7 @@ router.patch(
 			});
 
 			console.log(
-				`Audit log created for moderation event update: ${eventToEdit.id}`
+				`Audit log created for moderation event update: ${eventToEdit.id}`,
 			);
 			return res.status(200).send({
 				message: "Moderation event edited successfully",
@@ -345,19 +461,21 @@ router.patch(
 			console.error("Error saving edited moderation event:", error);
 			return res.status(500).send({ error: "Failed to edit moderation event" });
 		}
-	}
+	},
 );
 
 const deleteModerationEvent = z.object({
-	userId: z.coerce
-		.number()
-		.int()
-		.positive()
-		.transform((num) => String(num)),
+	userId: discordSnowflake,
 });
 
-router.delete("/:eventId", async (req, res) => {
-	const { eventId } = req.params;
+router.delete(
+	"/:eventId",
+	async (req: express.Request<{ eventId: string; guildId: string }>, res) => {
+	const { eventId, guildId } = req.params;
+
+	if (!discordSnowflake.safeParse(guildId).success) {
+		return res.status(400).send({ error: "Invalid guildId format" });
+	}
 
 	if (!/^\d+$/.test(eventId)) {
 		return res.status(400).send({ error: "Invalid eventId format" });
@@ -379,7 +497,7 @@ router.delete("/:eventId", async (req, res) => {
 		userRepository
 			.upsert(
 				{ id: userId },
-				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true }
+				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 			)
 			.then(() => userRepository.findOneBy({ id: userId })),
 		eventRepository.findOne({
@@ -411,10 +529,11 @@ router.delete("/:eventId", async (req, res) => {
 	});
 
 	console.log(
-		`Audit log created for moderation event deletion: ${eventToDelete.id}`
+		`Audit log created for moderation event deletion: ${eventToDelete.id}`,
 	);
 
 	return res
 		.status(200)
 		.send({ eventId, message: "Event deleted successfully" });
-});
+	},
+);

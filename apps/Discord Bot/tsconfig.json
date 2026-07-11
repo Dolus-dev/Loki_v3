@@ -19,7 +19,7 @@
     "declaration": false,
     "jsx": "react-jsx",
     "jsxImportSource": "commandkit",
-    "baseUrl": ".",
+    "baseUrl": "./",
     "paths": {
       "@/*": ["./src/*"]
     }
