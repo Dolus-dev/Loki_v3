@@ -1,8 +1,9 @@
 import { APIGuild } from "discord.js";
 import express from "express";
-import { redisClient } from "../../../..";
+import { cacheGet, cacheSet } from "../../../../lib/cache";
 import { fetchGuildRoles } from "../../../../lib/discordInteractions";
 import { requireAuth } from "../../../../lib/Middlewares/requireAuth";
+import { requireGuildSettingsAccess } from "../../../../lib/Middlewares/requireGuildSettingsAccess";
 import z from "zod";
 
 export const router = express.Router({ mergeParams: true });
@@ -17,12 +18,19 @@ const CachedRolesSchema = z.array(
 );
 
 const query = z.object({
-	forceRefresh: z.coerce.boolean().optional().default(false),
+	// stringbool parses "true"/"false"; z.coerce.boolean() would turn "false" into true
+	forceRefresh: z.stringbool().optional().default(false),
 });
 
+/**
+ * Returns a guild's roles (highest position first, without @everyone), for role
+ * pickers in the dashboard. Cached in Redis for 5 minutes; `?forceRefresh=true`
+ * skips the cache read and refetches from Discord.
+ */
 router.get(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("view"),
 	async (
 		req: express.Request<{ guildId: string }>,
 		res: express.Response,
@@ -41,7 +49,7 @@ router.get(
 		let roles: APIGuild["roles"] | APIRoleSimplified[] | null = null;
 
 		if (forceRefresh === false) {
-			const value = await redisClient.get(key);
+			const value = await cacheGet(key);
 
 			if (value) {
 				const cachedRoles = CachedRolesSchema.safeParse(JSON.parse(value));
@@ -66,9 +74,7 @@ router.get(
 			.sort((a, b) => b.position - a.position)
 			.filter((role) => role.name !== "@everyone") as APIRoleSimplified[];
 
-		await redisClient.set(key, JSON.stringify(simplifiedRoles), {
-			EX: 300, // Cache for 5 minutes
-		});
+		await cacheSet(key, JSON.stringify(simplifiedRoles), 300); // Cache for 5 minutes
 		return res.status(200).send(simplifiedRoles);
 	},
 );

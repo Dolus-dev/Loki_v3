@@ -16,12 +16,33 @@ import {
 	AuditAction,
 	createAuditLogEntry,
 } from "../../../../../lib/Audit Log/createLog";
-import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
+import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
+import {
+	decodeCursor,
+	encodeCursor,
+	parseRowId,
+} from "../../../../../lib/pagination";
+import { discordSnowflake } from "../../../../../lib/validation";
 export const router = express.Router({ mergeParams: true });
 
-const discordSnowflake = z
-	.string()
-	.regex(/^\d{17,20}$/, "Invalid Discord snowflake ID");
+/**
+ * Works out which user performed a moderation action.
+ *
+ * Dashboard (session) callers are always the logged-in user; any ID in the body is
+ * ignored so they can't attribute an action to someone else. The bot has no
+ * session, so it must state who acted in the body.
+ * @returns The acting user's ID, or null if the caller didn't provide one
+ */
+function resolveActorId(
+	res: express.Response,
+	sessionUserId: string | undefined,
+	bodyUserId: string | undefined,
+): string | null {
+	if (res.locals.authType === "session") {
+		return sessionUserId ?? null;
+	}
+	return bodyUserId ?? null;
+}
 
 const fetchModerationEventsFilters = z.object({
 	eventType: z
@@ -36,7 +57,6 @@ const fetchModerationEventsFilters = z.object({
 		.refine((date) => !date || !isNaN(date.getTime()), {
 			message: "Invalid date format for issuedBefore",
 		}),
-	guildName: z.string(),
 	issuedAfter: z.coerce
 		.number()
 		.int()
@@ -66,6 +86,7 @@ const GetUserModerationEventsQuery = GetGuildModerationEventsQuery;
 
 router.get(
 	"/",
+	requireGuildSettingsAccess("view"),
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const filters = await GetGuildModerationEventsQuery.safeParseAsync(
@@ -85,14 +106,11 @@ router.get(
 		let cursorId: number | undefined;
 
 		if (cursor) {
-			try {
-				cursorId = Number.parseInt(Buffer.from(cursor, "base64").toString("utf-8"), 10);
-				if (!Number.isInteger(cursorId)) {
-					return res.status(400).send({ error: "Invalid cursor format" });
-				}
-			} catch (error) {
+			const decoded = decodeCursor(cursor);
+			if (decoded === null) {
 				return res.status(400).send({ error: "Invalid cursor format" });
 			}
+			cursorId = decoded;
 		}
 
 		const queryBuilder = eventRepository
@@ -118,7 +136,7 @@ router.get(
 		const hasMore = events.length > pageSize;
 		const items = events.slice(0, pageSize);
 		const nextCursor = hasMore
-			? Buffer.from(String(items[items.length - 1].id)).toString("base64")
+			? encodeCursor(items[items.length - 1].id)
 			: null;
 
 		return res.status(200).send({
@@ -135,6 +153,7 @@ router.get(
 
 router.get(
 	"/:userId",
+	requireGuildSettingsAccess("view"),
 	async (req: express.Request<{ guildId: string; userId: string }>, res) => {
 		const { userId, guildId } = req.params;
 
@@ -154,27 +173,16 @@ router.get(
 			return res.status(400).send(z.treeifyError(filters.error));
 		}
 
-		const { eventType, issuedBefore, issuedAfter, fetchType, guildName } =
-			filters.data;
-
-		// Placeholder for actual data fetching logic
-		// You would typically query your database here using the filters
+		const { eventType, issuedBefore, issuedAfter, fetchType } = filters.data;
 
 		const eventRepository = AppDataSource.getRepository(ModerationEvents);
 		const guildRepository = AppDataSource.getRepository(Guild);
 
-		await guildRepository.upsert(
-			{
-				id: guildId,
-				name: guildName,
-			},
-			{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
-		);
+		// Reads must not write: the guild has to be registered already (via POST /guilds)
+		const guildExists = await guildRepository.existsBy({ id: guildId });
 
-		const guild = await guildRepository.findOneBy({ id: guildId });
-
-		if (!guild) {
-			return res.status(500).send({ error: "Failed to create/fetch guild" });
+		if (!guildExists) {
+			return res.status(404).send({ error: "Guild not found" });
 		}
 
 		const pagination = await GetUserModerationEventsQuery.safeParseAsync(req.query);
@@ -191,14 +199,11 @@ router.get(
 		let cursorId: number | undefined;
 
 		if (cursor) {
-			try {
-				cursorId = Number.parseInt(Buffer.from(cursor, "base64").toString("utf-8"), 10);
-				if (!Number.isInteger(cursorId)) {
-					return res.status(400).send({ error: "Invalid cursor format" });
-				}
-			} catch (error) {
+			const decoded = decodeCursor(cursor);
+			if (decoded === null) {
 				return res.status(400).send({ error: "Invalid cursor format" });
 			}
+			cursorId = decoded;
 		}
 
 		const queryBuilder = eventRepository
@@ -261,7 +266,7 @@ router.get(
 		const hasMore = events.length > pageSize;
 		const items = events.slice(0, pageSize);
 		const nextCursor = hasMore
-			? Buffer.from(String(items[items.length - 1].id)).toString("base64")
+			? encodeCursor(items[items.length - 1].id)
 			: null;
 
 		return res.status(200).send({
@@ -277,7 +282,8 @@ router.get(
 );
 
 const createModerationEvent = z.object({
-	issuedBy: discordSnowflake,
+	// Required for the bot; ignored for dashboard users (see resolveActorId)
+	issuedBy: discordSnowflake.optional(),
 
 	reason: z
 		.string()
@@ -290,7 +296,7 @@ const createModerationEvent = z.object({
 
 router.post(
 	"/:userId",
-	requireAuth,
+	requireGuildSettingsAccess("edit"),
 	async (req: express.Request<{ userId: string; guildId: string }>, res) => {
 		const { userId, guildId } = req.params;
 
@@ -302,19 +308,25 @@ router.post(
 			return res.status(400).send({ error: "Invalid userId format" });
 		}
 
-		const { issuedBy, reason, eventType } = parseResult.data;
+		const { reason, eventType } = parseResult.data;
+
+		const issuedBy = resolveActorId(
+			res,
+			req.session.userId,
+			parseResult.data.issuedBy,
+		);
+		if (!issuedBy) {
+			return res.status(400).send({ error: "issuedBy is required" });
+		}
 
 		const userRepository = AppDataSource.getRepository(User);
 		const moderationRepository = AppDataSource.getRepository(ModerationEvents);
 		const guildRepository = AppDataSource.getRepository(Guild);
 
 		const [guild, targetUser, issuingUser] = await Promise.all([
-			guildRepository
-				.upsert(
-					{ id: guildId },
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
-				)
-				.then(() => guildRepository.findOneBy({ id: guildId })),
+			// The guild must already be registered (the bot does this via POST /guilds).
+			// It can't be upserted here because the `name` column is required.
+			guildRepository.findOneBy({ id: guildId }),
 
 			userRepository
 				.upsert(
@@ -331,10 +343,12 @@ router.post(
 				.then(() => userRepository.findOneBy({ id: issuedBy })),
 		]);
 
-		if (!targetUser || !issuingUser || !guild) {
-			return res
-				.status(500)
-				.send({ error: "Failed to create/fetch users or guild" });
+		if (!guild) {
+			return res.status(404).send({ error: "Guild not found" });
+		}
+
+		if (!targetUser || !issuingUser) {
+			return res.status(500).send({ error: "Failed to create/fetch users" });
 		}
 
 		const newEvent = moderationRepository.create({
@@ -347,24 +361,28 @@ router.post(
 		});
 
 		try {
-			await moderationRepository.save(newEvent);
+			// The event and its audit entry are saved together: if one fails, neither is kept
+			await AppDataSource.transaction(async (manager) => {
+				await manager.getRepository(ModerationEvents).save(newEvent);
+
+				await createAuditLogEntry(
+					{
+						action:
+							AuditAction.MODERATION_EVENT.CREATE[
+								eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.CREATE
+							],
+						userId: issuingUser.id,
+						targetUserId: targetUser.id,
+						guildId: guild.id,
+						details: `Created ${eventType} moderation event for user ID ${targetUser.id}`,
+					},
+					manager,
+				);
+			});
 
 			console.log(
 				`Moderation event created: ${newEvent.id} against user ${userId}`,
 			);
-
-			await createAuditLogEntry({
-				action:
-					AuditAction.MODERATION_EVENT.CREATE[
-						eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.CREATE
-					],
-				userId: issuingUser.id,
-				targetUserId: targetUser.id,
-				guildId: guild.id,
-				details: `Created ${eventType} moderation event for user ID ${targetUser.id}`,
-			});
-
-			console.log(`Audit log created for moderation event: ${newEvent.id}`);
 
 			return res
 				.status(201)
@@ -381,11 +399,13 @@ router.post(
 const editModerationEvent = z.object({
 	reason: z.string().trim().max(512, "Reason cannot exceed 512 characters"),
 
-	editedBy: discordSnowflake,
+	// Required for the bot; ignored for dashboard users (see resolveActorId)
+	editedBy: discordSnowflake.optional(),
 });
 
 router.patch(
 	"/:eventId",
+	requireGuildSettingsAccess("edit"),
 	async (req: express.Request<{ eventId: string; guildId: string }>, res) => {
 		const { eventId, guildId } = req.params;
 
@@ -393,7 +413,8 @@ router.patch(
 			return res.status(400).send({ error: "Invalid guildId format" });
 		}
 
-		if (!/^\d+$/.test(eventId)) {
+		const eventRowId = parseRowId(eventId);
+		if (eventRowId === null) {
 			return res.status(400).send({ error: "Invalid eventId format" });
 		}
 
@@ -402,7 +423,16 @@ router.patch(
 			return res.status(400).send(z.treeifyError(parseResult.error));
 		}
 
-		const { reason, editedBy } = parseResult.data;
+		const { reason } = parseResult.data;
+
+		const editedBy = resolveActorId(
+			res,
+			req.session.userId,
+			parseResult.data.editedBy,
+		);
+		if (!editedBy) {
+			return res.status(400).send({ error: "editedBy is required" });
+		}
 
 		const eventRepository = AppDataSource.getRepository(ModerationEvents);
 		const userRepository = AppDataSource.getRepository(User);
@@ -414,9 +444,10 @@ router.patch(
 					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 				)
 				.then(() => userRepository.findOneBy({ id: editedBy })),
+			// Scoped to the URL's guild so one guild can't edit another's events
 			eventRepository.findOne({
-				where: { id: Number(eventId) },
-				relations: ["guild"],
+				where: { id: eventRowId, guild: { id: guildId } },
+				relations: ["guild", "issuedTo"],
 			}),
 		]);
 		if (!editingUser) {
@@ -433,25 +464,27 @@ router.patch(
 		eventToEdit.lastUpdatedBy = editingUser;
 
 		try {
-			await eventRepository.save(eventToEdit);
+			// The edit and its audit entry are saved together: if one fails, neither is kept
+			await AppDataSource.transaction(async (manager) => {
+				await manager.getRepository(ModerationEvents).save(eventToEdit);
 
-			console.log(
-				`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`,
-			);
-
-			await createAuditLogEntry({
-				action:
-					AuditAction.MODERATION_EVENT.UPDATE[
-						eventToEdit.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.UPDATE
-					],
-				userId: editingUser.id,
-				targetUserId: eventToEdit.issuedTo.id,
-				guildId: eventToEdit.guild.id,
-				details: `Edited ${eventToEdit.eventType} moderation event with ID ${eventToEdit.id}`,
+				await createAuditLogEntry(
+					{
+						action:
+							AuditAction.MODERATION_EVENT.UPDATE[
+								eventToEdit.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.UPDATE
+							],
+						userId: editingUser.id,
+						targetUserId: eventToEdit.issuedTo.id,
+						guildId: eventToEdit.guild.id,
+						details: `Edited ${eventToEdit.eventType} moderation event with ID ${eventToEdit.id}`,
+					},
+					manager,
+				);
 			});
 
 			console.log(
-				`Audit log created for moderation event update: ${eventToEdit.id}`,
+				`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`,
 			);
 			return res.status(200).send({
 				message: "Moderation event edited successfully",
@@ -465,11 +498,13 @@ router.patch(
 );
 
 const deleteModerationEvent = z.object({
-	userId: discordSnowflake,
+	// Required for the bot; ignored for dashboard users (see resolveActorId)
+	userId: discordSnowflake.optional(),
 });
 
 router.delete(
 	"/:eventId",
+	requireGuildSettingsAccess("edit"),
 	async (req: express.Request<{ eventId: string; guildId: string }>, res) => {
 	const { eventId, guildId } = req.params;
 
@@ -477,7 +512,8 @@ router.delete(
 		return res.status(400).send({ error: "Invalid guildId format" });
 	}
 
-	if (!/^\d+$/.test(eventId)) {
+	const eventRowId = parseRowId(eventId);
+	if (eventRowId === null) {
 		return res.status(400).send({ error: "Invalid eventId format" });
 	}
 
@@ -485,13 +521,21 @@ router.delete(
 
 	const userRepository = AppDataSource.getRepository(User);
 
-	const parseResult = deleteModerationEvent.safeParse(req.body);
+	// DELETE requests may have no body, so default to an empty object
+	const parseResult = deleteModerationEvent.safeParse(req.body ?? {});
 
 	if (!parseResult.success) {
 		return res.status(400).send(z.treeifyError(parseResult.error));
 	}
 
-	const { userId } = parseResult.data;
+	const userId = resolveActorId(
+		res,
+		req.session.userId,
+		parseResult.data.userId,
+	);
+	if (!userId) {
+		return res.status(400).send({ error: "userId is required" });
+	}
 
 	const [deletingUser, eventToDelete] = await Promise.all([
 		userRepository
@@ -500,8 +544,11 @@ router.delete(
 				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
 			)
 			.then(() => userRepository.findOneBy({ id: userId })),
+		// Scoped to the URL's guild so one guild can't delete another's events.
+		// Relations are needed for the audit log entry below.
 		eventRepository.findOne({
-			where: { id: Number(eventId) },
+			where: { id: eventRowId, guild: { id: guildId } },
+			relations: ["guild", "issuedTo"],
 		}),
 	]);
 
@@ -515,25 +562,37 @@ router.delete(
 			.send({ error: "Failed to create/fetch deleting user" });
 	}
 
-	await eventRepository.remove(eventToDelete);
+	// Capture what the audit log needs first; TypeORM clears `id` on removed entities
+	const { eventType, issuedTo, guild } = eventToDelete;
 
-	await createAuditLogEntry({
-		action:
-			AuditAction.MODERATION_EVENT.DELETE[
-				eventToDelete.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.DELETE
-			],
-		userId: deletingUser.id,
-		targetUserId: eventToDelete.issuedTo.id,
-		guildId: eventToDelete.guild.id,
-		details: `Deleted ${eventToDelete.eventType} moderation event with ID ${eventToDelete.id}`,
-	});
+	try {
+		// The deletion and its audit entry are saved together: if one fails, neither is kept
+		await AppDataSource.transaction(async (manager) => {
+			await manager.getRepository(ModerationEvents).remove(eventToDelete);
 
-	console.log(
-		`Audit log created for moderation event deletion: ${eventToDelete.id}`,
-	);
+			await createAuditLogEntry(
+				{
+					action:
+						AuditAction.MODERATION_EVENT.DELETE[
+							eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.DELETE
+						],
+					userId: deletingUser.id,
+					targetUserId: issuedTo.id,
+					guildId: guild.id,
+					details: `Deleted ${eventType} moderation event with ID ${eventId}`,
+				},
+				manager,
+			);
+		});
 
-	return res
-		.status(200)
-		.send({ eventId, message: "Event deleted successfully" });
+		console.log(`Moderation event deleted: ${eventId}`);
+
+		return res
+			.status(200)
+			.send({ eventId, message: "Event deleted successfully" });
+	} catch (error) {
+		console.error("Error deleting moderation event:", error);
+		return res.status(500).send({ error: "Failed to delete moderation event" });
+	}
 	},
 );

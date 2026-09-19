@@ -5,9 +5,11 @@ import {
 	fetchCurrentUserGuilds,
 } from "../../../../lib/discordInteractions";
 import { PermissionsBitField } from "discord.js";
-import { AppDataSource, redisClient } from "../../../..";
+import { AppDataSource } from "../../../..";
+import { cacheGet, cacheSet } from "../../../../lib/cache";
 import { In } from "typeorm";
 import { Guild } from "../../../../models/Guild";
+import { withUserAccessToken } from "../../../../lib/userTokens";
 
 export const router = express.Router();
 
@@ -17,6 +19,14 @@ type CurrentGuildMember = Awaited<ReturnType<typeof fetchCurrentGuildMember>>;
 const USER_GUILD_CACHE_TTL_SECONDS = 300;
 const GUILD_MEMBER_CACHE_TTL_SECONDS = 300;
 
+/**
+ * Lists the guilds the current user can open in the dashboard.
+ *
+ * A guild is accessible if the user has Manage Server there, or holds a role that
+ * the guild's dashboard settings grant view/edit access to. Results (and the
+ * per-guild member lookups) are cached in Redis for 5 minutes, so role or
+ * permission changes can take that long to show up.
+ */
 router.get("/", requireAuth, async (req, res) => {
 	const accessToken = req.session.accessToken;
 	if (!accessToken) {
@@ -24,14 +34,15 @@ router.get("/", requireAuth, async (req, res) => {
 	}
 
 	const userGuildCacheKey = "user:guilds:" + req.session.userId;
-	const cachedGuilds = await redisClient.get(userGuildCacheKey);
+	const cachedGuilds = await cacheGet(userGuildCacheKey);
 
 	if (cachedGuilds) {
 		console.log("Cache hit for user guilds:", req.session.userId);
 		return res.status(200).send(JSON.parse(cachedGuilds) as UserGuilds[]);
 	}
 
-	const userGuilds = await fetchCurrentUserGuilds(accessToken);
+	// Refreshes the user's Discord token automatically if it has expired
+	const userGuilds = await withUserAccessToken(req, fetchCurrentUserGuilds);
 	const userGuildIds = userGuilds.map((guild) => guild.id);
 	const guildRepository = AppDataSource.getRepository(Guild);
 	const botGuilds = await guildRepository.find({
@@ -41,7 +52,8 @@ router.get("/", requireAuth, async (req, res) => {
 
 	const botGuildMap = new Map(botGuilds.map((guild) => [guild.id, guild]));
 
-	const guildsNeedingMemberCheck = userGuilds.filter((guild) => {
+	// Users without Manage Server need their roles checked, but only in guilds the bot is in
+	const guildsNeedingMemberCheck =userGuilds.filter((guild) => {
 		const permissions = new PermissionsBitField(BigInt(guild.permissions));
 		return !permissions.has(PermissionsBitField.Flags.ManageGuild) && botGuildMap.has(guild.id);
 	});
@@ -49,21 +61,26 @@ router.get("/", requireAuth, async (req, res) => {
 	const memberCacheEntries = await Promise.allSettled(
 		guildsNeedingMemberCheck.map(async (guild) => {
 			const memberCacheKey = `user:guild-member:${req.session.userId}:${guild.id}`;
-			const cachedMember = await redisClient.get(memberCacheKey);
+			const cachedMember = await cacheGet(memberCacheKey);
 
 			if (cachedMember) {
 				return [guild.id, JSON.parse(cachedMember) as CurrentGuildMember] as const;
 			}
 
-			const member = await fetchCurrentGuildMember(accessToken, guild.id);
-			await redisClient.set(memberCacheKey, JSON.stringify(member), {
-				EX: GUILD_MEMBER_CACHE_TTL_SECONDS,
-			});
+			const member = await withUserAccessToken(req, (accessToken) =>
+				fetchCurrentGuildMember(accessToken, guild.id),
+			);
+			await cacheSet(
+				memberCacheKey,
+				JSON.stringify(member),
+				GUILD_MEMBER_CACHE_TTL_SECONDS,
+			);
 
 			return [guild.id, member] as const;
 		}),
 	);
 
+	// A guild stays null when its member lookup failed, which hides it from the user
 	const guildMemberMap = new Map<string, CurrentGuildMember | null>();
 	for (const guild of guildsNeedingMemberCheck) {
 		guildMemberMap.set(guild.id, null);
@@ -99,12 +116,14 @@ router.get("/", requireAuth, async (req, res) => {
 		id: guild.id,
 		name: guild.name,
 		icon: guild.icon ?? null,
-		setUp: botGuildMap.has(guild.id),
+		setUp: botGuildMap.has(guild.id), // Whether the bot has been added to the guild
 	}));
 
-	await redisClient.set(userGuildCacheKey, JSON.stringify(simplifiedGuilds), {
-		EX: USER_GUILD_CACHE_TTL_SECONDS,
-	});
+	await cacheSet(
+		userGuildCacheKey,
+		JSON.stringify(simplifiedGuilds),
+		USER_GUILD_CACHE_TTL_SECONDS,
+	);
 
 	return res.status(200).send(simplifiedGuilds);
 });

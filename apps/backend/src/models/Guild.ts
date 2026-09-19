@@ -1,7 +1,6 @@
 import {
 	Column,
 	Entity,
-	JoinColumn,
 	OneToMany,
 	OneToOne,
 	PrimaryColumn,
@@ -20,6 +19,10 @@ import { Tickets } from "./Tickets/Tickets";
 import { ThrowCommand } from "./Fun/Throw";
 import { StarboardSettings } from "./Fun/Starboard";
 
+/**
+ * A Discord guild the bot is in. Each per-feature settings entity is linked
+ * one-to-one and shares the guild's ID as its primary key.
+ */
 @Entity()
 export class Guild {
 	@PrimaryColumn({ type: "varchar", unique: true })
@@ -43,35 +46,61 @@ export class Guild {
 	})
 	dashboardSettings!: DashboardSettings;
 
-	@OneToOne(() => MuteSettings, { cascade: true, eager: false })
-	@JoinColumn()
+	@OneToOne(() => MuteSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	muteSettings!: MuteSettings;
 
-	@OneToOne(() => KickSettings, { cascade: true, eager: false })
+	@OneToOne(() => KickSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	kickSettings!: KickSettings;
 
-	@OneToOne(() => BanSettings, { cascade: true, eager: false })
+	@OneToOne(() => BanSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	banSettings!: BanSettings;
 
-	@OneToOne(() => TimeoutSettings, { cascade: true, eager: false })
+	@OneToOne(() => TimeoutSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	timeoutSettings!: TimeoutSettings;
 
-	@OneToOne(() => WarnSettings, { cascade: true, eager: false })
+	@OneToOne(() => WarnSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	warnSettings!: WarnSettings;
 
-	@OneToOne(() => TicketSettings, { cascade: true, eager: false })
+	@OneToOne(() => TicketSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	ticketSettings!: TicketSettings;
 
-	@OneToOne(() => LoggingSettings, { cascade: true, eager: false })
+	@OneToOne(() => LoggingSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	loggingSettings!: LoggingSettings;
 
 	@OneToMany(() => Tickets, (tickets) => tickets.guild)
 	tickets!: Tickets[];
 
-	@OneToOne(() => ThrowCommand, { cascade: true, eager: false })
+	@OneToOne(() => ThrowCommand, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	throwCommand!: ThrowCommand;
 
-	@OneToOne(() => StarboardSettings, { cascade: true, eager: false })
+	@OneToOne(() => StarboardSettings, (settings) => settings.guild, {
+		cascade: true,
+		eager: false,
+	})
 	starboardSettings!: StarboardSettings;
 
 	constructor(id: string, name: string, iconHash?: string | null) {

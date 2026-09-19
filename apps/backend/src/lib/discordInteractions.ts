@@ -36,31 +36,45 @@ async function throwDiscordError(
 	throw new DiscordError(res.status, details);
 }
 
+const MAX_DISCORD_RETRIES = 3;
+// Waiting longer than this holds the caller's request open too long, so fail instead
+const MAX_DISCORD_RETRY_WAIT_SECONDS = 10;
+
+/**
+ * Runs a Discord request and retries it when Discord responds with a `retry-after` header.
+ * Gives up (throwing a DiscordError) after MAX_DISCORD_RETRIES retries, or when asked to
+ * wait longer than MAX_DISCORD_RETRY_WAIT_SECONDS. Any other failure is thrown immediately.
+ * @param request Factory that performs the request; called again on each retry
+ * @param fallback Error message used when Discord's response has no details
+ */
 async function fetchWithDiscordRetry(
 	request: () => Promise<Response>,
 	fallback: string,
 ): Promise<Response> {
-	const res = await request();
+	for (let retries = 0; ; retries++) {
+		const res = await request();
 
-	if (res.ok) {
-		return res;
-	}
+		if (res.ok) {
+			return res;
+		}
 
-	const retryAfter = res.headers.get("retry-after");
-	if (retryAfter) {
-		const delaySeconds = Number.parseFloat(retryAfter);
-		if (!Number.isFinite(delaySeconds) || delaySeconds <= 0) {
+		const retryAfter = res.headers.get("retry-after");
+		const delaySeconds = retryAfter ? Number.parseFloat(retryAfter) : NaN;
+
+		if (
+			retries >= MAX_DISCORD_RETRIES ||
+			!Number.isFinite(delaySeconds) ||
+			delaySeconds <= 0 ||
+			delaySeconds > MAX_DISCORD_RETRY_WAIT_SECONDS
+		) {
 			return await throwDiscordError(res, fallback);
 		}
 
 		console.warn(
-			`Rate limited by Discord. Retrying after ${retryAfter} seconds.`,
+			`Rate limited by Discord. Retrying after ${retryAfter} seconds (retry ${retries + 1}/${MAX_DISCORD_RETRIES}).`,
 		);
 		await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
-		return fetchWithDiscordRetry(request, fallback);
 	}
-
-	return await throwDiscordError(res, fallback);
 }
 
 type DiscordUserGuild = {
@@ -147,6 +161,11 @@ export async function fetchDiscordUser(accessToken: string): Promise<APIUser> {
 	return (await res.json()) as APIUser;
 }
 
+/**
+ * Fetches a guild using the bot token
+ * @param guildId The ID of the guild to fetch
+ * @returns The Discord guild data
+ */
 export async function fetchDiscordGuild(guildId: string): Promise<APIGuild> {
 	const res = await fetchWithDiscordRetry(
 		() =>
@@ -161,6 +180,10 @@ export async function fetchDiscordGuild(guildId: string): Promise<APIGuild> {
 	return (await res.json()) as APIGuild;
 }
 
+/**
+ * Fetches the guilds the authorized user is in, including their permissions in each
+ * @param accessToken The user's access token (needs the `guilds` scope)
+ */
 export async function fetchCurrentUserGuilds(
 	accessToken: string,
 ): Promise<DiscordUserGuild[]> {
@@ -177,6 +200,11 @@ export async function fetchCurrentUserGuilds(
 	return (await res.json()) as DiscordUserGuild[];
 }
 
+/**
+ * Fetches the authorized user's member object (roles) in a guild
+ * @param accessToken The user's access token (needs the `guilds.members.read` scope)
+ * @param guildId The ID of the guild to fetch the member from
+ */
 export async function fetchCurrentGuildMember(
 	accessToken: string,
 	guildId: string,
@@ -194,6 +222,10 @@ export async function fetchCurrentGuildMember(
 	return (await res.json()) as DiscordGuildMember;
 }
 
+/**
+ * Fetches all roles in a guild using the bot token
+ * @param guildId The ID of the guild
+ */
 export async function fetchGuildRoles(guildId: string): Promise<APIRole[]> {
 	const res = await fetchWithDiscordRetry(
 		() =>
@@ -208,6 +240,11 @@ export async function fetchGuildRoles(guildId: string): Promise<APIRole[]> {
 	return (await res.json()) as APIRole[];
 }
 
+/**
+ * Fetches the channels in a guild using the bot token
+ * @param guildId The ID of the guild
+ * @param channelType If provided, only channels of these types are returned
+ */
 export async function fetchGuildChannels(
 	guildId: string,
 	channelType?: ChannelType[],

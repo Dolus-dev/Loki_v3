@@ -21,6 +21,21 @@ const envSchema = z.object({
 	REDIS_HOST: z.string().min(1, "REDIS_HOST is required"),
 	REDIS_PORT: z.coerce.number().int().positive(),
 	DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+	// Key for encrypting stored Discord tokens: 32 random bytes, base64-encoded
+	TOKEN_ENCRYPTION_KEY: z
+		.string()
+		.refine(
+			(value) => Buffer.from(value, "base64").length === 32,
+			"TOKEN_ENCRYPTION_KEY must be 32 bytes, base64-encoded",
+		),
+	// How many reverse proxies (Nginx, Caddy, a hosting platform, ...) sit between the
+	// internet and this server. 0 means none, which is right for local development.
+	TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+	// When true, the whole database schema (and all its data) is dropped on every start
+	DB_RESET: z.stringbool().default(false),
+}).refine((config) => !(config.DB_RESET && config.NODE_ENV === "production"), {
+	message: "DB_RESET cannot be enabled when NODE_ENV is production",
+	path: ["DB_RESET"],
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

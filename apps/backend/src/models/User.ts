@@ -1,6 +1,7 @@
-import { Column, Entity, PrimaryColumn, OneToMany, JoinColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn, OneToMany } from "typeorm";
 
 import { ModerationEvents } from "./Moderation/ModerationEvents";
+import { encryptedColumn } from "../lib/crypto";
 
 @Entity()
 export class User {
@@ -13,10 +14,25 @@ export class User {
 	@Column({ type: "varchar", nullable: true })
 	avatarHash: string | null;
 
-	@Column({ type: "varchar", nullable: true })
+	// Discord OAuth tokens from login (replaced whenever they are refreshed, see
+	// lib/userTokens.ts); encrypted at rest by the column transformer. Null for users
+	// only created as moderation targets/issuers who have never logged in.
+	// `select: false` keeps them out of every query (including joins that end up in API
+	// responses); code that needs one must select it explicitly, see lib/userTokens.ts.
+	@Column({
+		type: "varchar",
+		nullable: true,
+		select: false,
+		transformer: encryptedColumn,
+	})
 	accessToken: string;
 
-	@Column({ type: "varchar", nullable: true })
+	@Column({
+		type: "varchar",
+		nullable: true,
+		select: false,
+		transformer: encryptedColumn,
+	})
 	refreshToken: string;
 
 	@OneToMany(() => ModerationEvents, (event) => event.issuedTo)

@@ -3,6 +3,10 @@ interface APIErrorResponse {
 	details: string;
 }
 
+/**
+ * Error thrown when a request to the Discord API fails
+ * `statusCode` is Discord's HTTP status and `details` is Discord's error message.
+ */
 export class DiscordError extends Error implements APIErrorResponse {
 	statusCode: number;
 	details: string;

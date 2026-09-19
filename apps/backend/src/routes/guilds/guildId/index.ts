@@ -1,9 +1,12 @@
 import express from "express";
-import { AppDataSource, redisClient } from "../../..";
+import { AppDataSource } from "../../..";
+import { cacheGet, cacheSet } from "../../../lib/cache";
 import { Guild } from "../../../models/Guild";
 import { requireAuth } from "../../../lib/Middlewares/requireAuth";
+import { requireGuildSettingsAccess } from "../../../lib/Middlewares/requireGuildSettingsAccess";
 import { APIGuild } from "discord.js";
 import { fetchDiscordGuild } from "../../../lib/discordInteractions";
+import { DiscordError } from "../../../lib/Errors/APIErrorResponse";
 import { ModerationEvents } from "../../../models/Moderation/ModerationEvents";
 import { MoreThan } from "typeorm";
 import { router as settingsRouter } from "./settings/index";
@@ -32,14 +35,21 @@ const CachedGuildObjectSchema = z.object({
 	}),
 });
 
+// Sub-routers are mounted before the "/" handler below; `mergeParams` gives them `guildId`
 router.use("/settings", settingsRouter);
 router.use("/moderation", moderationRouter);
 router.use("/roles", rolesRouter);
 router.use("/channels", channelsRouter);
 
+/**
+ * Returns an overview of a guild: its Discord info, dashboard settings and
+ * moderation event counts (total and last 7 days). The response is cached in
+ * Redis for 5 minutes. Also creates the guild's database row if it is missing.
+ */
 router.get(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("view"),
 	async (
 		req: express.Request<{ guildId: string }>,
 		res: express.Response,
@@ -48,7 +58,7 @@ router.get(
 
 		const key = "guild:base:" + guildId;
 
-		const value = await redisClient.get(key);
+		const value = await cacheGet(key);
 
 		if (value) {
 			const cachedGuild = CachedGuildObjectSchema.safeParse(JSON.parse(value));
@@ -107,13 +117,19 @@ router.get(
 				},
 			};
 
-			await redisClient.set(key, JSON.stringify(guildObject), {
-				EX: 300, // Cache for 5 minutes
-			});
+			await cacheSet(key, JSON.stringify(guildObject), 300); // Cache for 5 minutes
 
 			return res.status(200).send(guildObject);
 		} catch (error) {
-			return res.status(404).send({ error: "Guild not found" });
+			// Only "Discord doesn't know this guild / the bot can't see it" means not found;
+			// anything else (database, Discord outage) is a real error, left for the error handler
+			if (
+				error instanceof DiscordError &&
+				(error.statusCode === 404 || error.statusCode === 403)
+			) {
+				return res.status(404).send({ error: "Guild not found" });
+			}
+			throw error;
 		}
 	},
 );

@@ -13,6 +13,8 @@ router.get("/", requireAuth, async (req, res) => {
 			});
 		});
 
+		// "connect.sid" is express-session's default cookie name; the options must
+		// match those set in index.ts or the browser won't clear it
 		res.clearCookie("connect.sid", {
 			httpOnly: true,
 			secure: env.NODE_ENV === "production",

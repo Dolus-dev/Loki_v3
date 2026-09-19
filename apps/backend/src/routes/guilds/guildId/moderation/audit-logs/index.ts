@@ -1,9 +1,11 @@
 import express from "express";
 import * as z from "zod";
-import { requireAuth } from "../../../../../lib/requireAuth - Middleware";
+import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
+import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { AuditLog } from "../../../../../models/Moderation/Logging/AuditLog";
 import { AppDataSource } from "../../../../../";
 import { FindOptionsWhere, LessThan } from "typeorm";
+import { decodeCursor, encodeCursor } from "../../../../../lib/pagination";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -21,6 +23,7 @@ const GetAuditLogsQuery = z.object({
 router.get(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("view"),
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const filters = await GetAuditLogsQuery.safeParseAsync(req.query);
 
@@ -40,14 +43,15 @@ router.get(
 		try {
 			let cursorId: number | undefined = undefined;
 
+			// Cursor is the base64 of the last returned log ID; results continue below it
 			if (cursor) {
-				try {
-					cursorId = parseInt(Buffer.from(cursor, "base64").toString("utf-8"));
-				} catch (error) {
+				const decoded = decodeCursor(cursor);
+				if (decoded === null) {
 					return res.status(400).send({
 						error: "Invalid cursor format",
 					});
 				}
+				cursorId = decoded;
 			}
 
 			// Build Query
@@ -56,7 +60,7 @@ router.get(
 				guild: { id: guildId },
 			};
 
-			if (cursorId) {
+			if (cursorId !== undefined) {
 				whereClause.id = LessThan(cursorId);
 			}
 
@@ -76,7 +80,7 @@ router.get(
 			// Generate next cursor from the last item's ID
 
 			const nextCursor = hasMore
-				? Buffer.from(String(items[items.length - 1].id)).toString("base64")
+				? encodeCursor(items[items.length - 1].id)
 				: null;
 
 			return res.status(200).send({
@@ -91,5 +95,5 @@ router.get(
 			console.error("Error fetching audit logs:", error);
 			return res.status(500).send({ error: "Failed to fetch audit logs" });
 		}
-	}
+	},
 );

@@ -1,31 +1,40 @@
 import express from "express";
 import { DashboardSettings } from "../../../../../models/DashboardSettings";
-import { AppDataSource, redisClient } from "../../../../..";
+import { AppDataSource } from "../../../../..";
+import { cacheDel, cacheGet, cacheSet } from "../../../../../lib/cache";
 import z, { treeifyError } from "zod";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
+import { requireManageGuild } from "../../../../../lib/Middlewares/requireManageGuild";
+import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
+import {
+	DASHBOARD_ACCESS_CACHE_TTL_SECONDS,
+	DashboardAccessSchema,
+	dashboardSettingsCacheKey,
+} from "../../../../../lib/guildAccess";
 import { Guild } from "../../../../../models/Guild";
+import { discordSnowflake } from "../../../../../lib/validation";
 
 export const router = express.Router({ mergeParams: true });
 
-const CachedDashboardSettingsSchema = z.object({
-	readAccess: z.array(z.string()),
-	editAccess: z.array(z.string()),
-});
+// The Redis-cached settings (see lib/guildAccess.ts) have the same shape this GET route
+// returns to the client
+const CachedDashboardSettingsSchema = DashboardAccessSchema;
 
 // Retrieve dashboard settings for a guild
 router.get(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("view"),
+	requireRegisteredGuild,
 	async (
 		req: express.Request<{ guildId: string }>,
 		res: express.Response,
 	): Promise<express.Response | void> => {
 		const { guildId } = req.params;
 
-		const key = "guild:dashboardSettings:" + guildId;
-		const value = await redisClient.get(key);
+		const key = dashboardSettingsCacheKey(guildId);
+		const value = await cacheGet(key);
 
 		let settings: DashboardSettings | FetchedDashboardSettings | null = null;
 
@@ -39,13 +48,7 @@ router.get(
 			}
 		}
 
-		const guildRepo = AppDataSource.getRepository(Guild);
-		const guildExists = await guildRepo.existsBy({ id: guildId });
-
-		if (!guildExists) {
-			return res.status(404).json({ error: "Guild not found" });
-		}
-
+		// The guild is known to exist (requireRegisteredGuild), so this can't create an orphan row
 		const dashRepo = AppDataSource.getRepository(DashboardSettings);
 
 		await dashRepo.upsert(
@@ -61,16 +64,16 @@ router.get(
 				.send({ error: "Failed to retrieve dashboard settings" });
 		}
 
-		console.log(settings);
-
 		const returnedSettings = {
 			readAccess: settings.rolesWithDashboardViewAccess,
 			editAccess: settings.rolesWithDashboardEditAccess,
 		} as FetchedDashboardSettings;
 
-		await redisClient.set(key, JSON.stringify(returnedSettings), {
-			EX: 300, // Cache for 5 minutes
-		});
+		await cacheSet(
+			key,
+			JSON.stringify(returnedSettings),
+			DASHBOARD_ACCESS_CACHE_TTL_SECONDS,
+		);
 
 		return res.status(200).json(returnedSettings);
 	},
@@ -81,15 +84,18 @@ interface FetchedDashboardSettings {
 	editAccess: string[];
 }
 
-// Update dashboard settings for a
+// Update dashboard settings for a guild (which roles can view/edit the dashboard)
 const patchItems = z.object({
-	rolesWithDashboardViewAccess: z.array(z.string()),
-	rolesWithDashboardEditAccess: z.array(z.string()),
+	rolesWithDashboardViewAccess: z.array(discordSnowflake),
+	rolesWithDashboardEditAccess: z.array(discordSnowflake),
 });
+// Changing who has dashboard access needs the Manage Server permission in the guild itself;
+// having a dashboard "edit" role isn't enough, or a role could grant itself (or anyone) more access
 router.patch(
 	"/",
 	requireAuth,
-	requireGuildSettingsAccess("edit"),
+	requireManageGuild,
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const parseResult = patchItems.safeParse(req.body);
@@ -106,51 +112,31 @@ router.patch(
 
 		const dashRepo = AppDataSource.getRepository(DashboardSettings);
 
-		const key = "guild:dashboardSettings:" + guildId;
 		try {
-			const saves = await Promise.allSettled([
-				redisClient.set(
-					key,
-					JSON.stringify({
-						id: guildId,
-						rolesWithDashboardViewAccess,
-						rolesWithDashboardEditAccess,
-					}),
-					{
-						EX: 300, // Cache for 5 minutes
-					},
-				),
-				await dashRepo.upsert(
-					{
-						id: guildId,
-						rolesWithDashboardViewAccess,
-						rolesWithDashboardEditAccess,
-					},
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
-				),
-			]);
-
-			if (saves.every((e) => e.status === "fulfilled")) {
-				return res.status(204).send();
-			} else {
-				if (saves[0].status === "rejected") {
-					console.error(
-						"Failed to update cache for dashboard settings:",
-						saves[0].reason,
-					);
-				}
-				if (saves[1].status === "rejected") {
-					console.error(
-						"Failed to update database for dashboard settings:",
-						saves[1].reason,
-					);
-				}
-				throw new Error("Failed to update dashboard settings");
-			}
+			await dashRepo.upsert(
+				{
+					id: guildId,
+					rolesWithDashboardViewAccess,
+					rolesWithDashboardEditAccess,
+				},
+				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
+			);
 		} catch (error) {
+			console.error("Failed to update database for dashboard settings:", error);
 			return res
 				.status(500)
 				.json({ error: "Failed to update dashboard settings" });
 		}
+
+		// Wipe the cached copies now that the database has the new roles; the next request
+		// reloads them. Deleting (rather than writing the new value) means concurrent updates
+		// can't leave an older value cached. A cache failure doesn't fail the request.
+		await Promise.all([
+			cacheDel(dashboardSettingsCacheKey(guildId)),
+			// The guild overview embeds these settings, so drop its cached copy too
+			cacheDel("guild:base:" + guildId),
+		]);
+
+		return res.status(204).send();
 	},
 );

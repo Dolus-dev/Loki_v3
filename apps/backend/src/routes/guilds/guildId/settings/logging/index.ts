@@ -3,14 +3,17 @@ import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { LoggingSettings } from "../../../../../models/Moderation/Logging/ServerLoggingSettings";
 import { AppDataSource } from "../../../../..";
 import z from "zod";
+import { discordSnowflake } from "../../../../../lib/validation";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
+import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 export const router = express.Router({ mergeParams: true });
 
-// Retrieve logging settings for a guild
+// Retrieve logging settings for a guild (a default row is created on first read)
 router.get(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("view"),
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 
@@ -34,24 +37,27 @@ router.get(
 		return res.status(200).json(settings);
 	},
 );
-// Update logging settings for a guild
 
+// Update logging settings for a guild. `enabled` is optional and left unchanged
+// when omitted; every other field must be sent on each update. A channel ID of null
+// clears it (the default channel is used, or that log is disabled; see the model).
 const patchItems = z.object({
 	enabled: z.boolean().optional(),
-	defaultLoggingChannelId: z.string(),
+	defaultLoggingChannelId: discordSnowflake.nullable(),
 	logModerationActions: z.boolean(),
-	moderationLogChannelId: z.string(),
+	moderationLogChannelId: discordSnowflake.nullable(),
 	logMessageEditsAndDeletions: z.boolean(),
-	messageLogChannelId: z.string(),
+	messageLogChannelId: discordSnowflake.nullable(),
 	logMemberLeaves: z.boolean(),
 	logMemberJoins: z.boolean(),
-	logMemberJoinChannelId: z.string(),
-	logMemberLeaveChannelId: z.string(),
+	logMemberJoinChannelId: discordSnowflake.nullable(),
+	logMemberLeaveChannelId: discordSnowflake.nullable(),
 });
 router.patch(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("edit"),
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 

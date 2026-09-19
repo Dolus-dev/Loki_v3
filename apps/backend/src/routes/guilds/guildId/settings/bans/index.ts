@@ -4,15 +4,16 @@ import { AppDataSource } from "../../../../..";
 import { BanSettings } from "../../../../../models/Moderation/Action Settings/BanSettings";
 import z from "zod";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
+import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 
 export const router = express.Router({ mergeParams: true });
 
-//Retrieve ban settings for a guild
-
+// Retrieve ban settings for a guild (a default row is created on first read)
 router.get(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("view"),
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const banSettingsRepo = AppDataSource.getRepository(BanSettings);
@@ -34,16 +35,18 @@ router.get(
 	},
 );
 
+// Update ban settings for a guild; all fields must be sent on each update
 const patchItems = z.object({
 	reasonRequired: z.boolean(),
 	evidenceRequired: z.boolean(),
-	defaultBanDurationSeconds: z.number().min(0),
+	defaultBanDurationSeconds: z.number().int().min(0),
 });
 
 router.patch(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("edit"),
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 		const parseResult = patchItems.safeParse(req.body);

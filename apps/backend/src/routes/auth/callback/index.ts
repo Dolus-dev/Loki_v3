@@ -26,7 +26,7 @@ router.get("/", async (req, res) => {
 		return;
 	}
 
-	// Exchange code for tokens logic goes here
+	// Exchange the authorization code for the user's Discord tokens
 	let tokenResponse: RESTPostOAuth2AccessTokenResult;
 	try {
 		tokenResponse = await exchangeCodeForToken(code.toString());
@@ -58,9 +58,27 @@ router.get("/", async (req, res) => {
 			skipUpdateIfNoValuesChanged: true,
 		},
 	);
+
+	// Issue a fresh session ID on login so a session ID set before login can't be
+	// reused afterwards (session fixation)
+	await new Promise<void>((resolve, reject) => {
+		req.session.regenerate((err) => (err ? reject(err) : resolve()));
+	});
+
 	req.session.userId = discordUser.id;
 	req.session.accessToken = tokenResponse.access_token;
 	req.session.refreshToken = tokenResponse.refresh_token;
+
+	await new Promise<void>((resolve, reject) => {
+		req.session.save((err) => (err ? reject(err) : resolve()));
+	});
+
+	// The state is single-use; clear it now that the login is complete
+	res.clearCookie("auth_state", {
+		httpOnly: true,
+		secure: env.NODE_ENV === "production",
+		sameSite: "lax",
+	});
 
 	void res.redirect(`${FRONTEND_URL}/`);
 	return;

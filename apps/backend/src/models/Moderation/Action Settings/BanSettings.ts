@@ -1,4 +1,4 @@
-import { Column, Entity, OneToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from "typeorm";
 import { Guild } from "../../Guild";
 
 @Entity()
@@ -9,6 +9,7 @@ export class BanSettings {
 	@OneToOne(() => Guild, (guild) => guild.banSettings, {
 		onDelete: "CASCADE",
 	})
+	@JoinColumn({ name: "guildId" }) // guildId is both the primary key and the foreign key to Guild
 	guild!: Guild;
 
 	@Column({ type: "boolean", default: false })
@@ -17,6 +18,7 @@ export class BanSettings {
 	@Column({ type: "boolean", default: false })
 	evidenceRequired!: boolean;
 
+	// Not currently exposed by the /settings/bans routes
 	@Column({ type: "boolean", default: false })
 	enabled!: boolean;
 

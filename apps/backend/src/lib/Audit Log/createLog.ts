@@ -1,3 +1,4 @@
+import { EntityManager } from "typeorm";
 import { AppDataSource } from "../..";
 
 /**
@@ -55,20 +56,25 @@ type LeafValues<T> = T extends string
 export type AuditAction = LeafValues<typeof AuditAction>;
 
 /**
- * Creats an audit log entry in the database
- * @param data Information for the audit log entry
+ * Creates an audit log entry in the database
+ * @param data Information for the audit log entry. The guild and user(s) must already exist, otherwise this throws.
+ * @param manager Entity manager to write with. Pass the one from a transaction so the entry
+ * commits or rolls back together with the change it records.
  */
-export async function createAuditLogEntry(data: {
-	action: AuditAction;
-	userId: string;
-	targetUserId?: string | null;
-	guildId: string;
-	details?: string | null;
-}): Promise<void> {
+export async function createAuditLogEntry(
+	data: {
+		action: AuditAction;
+		userId: string;
+		targetUserId?: string | null;
+		guildId: string;
+		details?: string | null;
+	},
+	manager: EntityManager = AppDataSource.manager,
+): Promise<void> {
 	const { action, userId, targetUserId, guildId, details } = data;
-	const auditLogRepository = AppDataSource.getRepository("AuditLog");
-	const guildRepository = AppDataSource.getRepository("Guild");
-	const userRepository = AppDataSource.getRepository("User");
+	const auditLogRepository = manager.getRepository("AuditLog");
+	const guildRepository = manager.getRepository("Guild");
+	const userRepository = manager.getRepository("User");
 
 	const [guild, user, targetUser] = await Promise.all([
 		guildRepository.findOneBy({ id: guildId }),

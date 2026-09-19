@@ -1,5 +1,4 @@
 import {
-	BeforeInsert,
 	Column,
 	Entity,
 	JoinColumn,
@@ -19,9 +18,11 @@ export class DashboardSettings {
 	@JoinColumn({ name: "id", referencedColumnName: "id" })
 	guild!: Guild;
 
+	// Role IDs that can open the dashboard read-only. Users with Manage Server always have access.
 	@Column({ type: "varchar", array: true, default: [] })
 	rolesWithDashboardViewAccess!: string[];
 
+	// Role IDs that can change settings; these also grant view access
 	@Column({ type: "varchar", array: true, default: [] })
 	rolesWithDashboardEditAccess!: string[];
 }

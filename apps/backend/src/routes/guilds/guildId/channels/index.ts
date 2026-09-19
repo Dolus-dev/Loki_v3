@@ -1,9 +1,11 @@
 import { APIGuildChannel, ChannelType, Snowflake } from "discord.js";
 import express from "express";
-import { redisClient } from "../../../..";
+import { cacheGet, cacheSet } from "../../../../lib/cache";
 import { fetchGuildChannels } from "../../../../lib/discordInteractions";
 import { requireAuth } from "../../../../lib/Middlewares/requireAuth";
+import { requireGuildSettingsAccess } from "../../../../lib/Middlewares/requireGuildSettingsAccess";
 import z from "zod";
+import { groupChannelsByCategory } from "../../../../lib/groupChannels";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -21,12 +23,19 @@ const CachedChannelsSchema = z.array(
 );
 
 const query = z.object({
-	forceRefresh: z.coerce.boolean().optional().default(false),
+	// stringbool parses "true"/"false"; z.coerce.boolean() would turn "false" into true
+	forceRefresh: z.stringbool().optional().default(false),
 });
 
+/**
+ * Returns a guild's channels grouped by category, for channel pickers in the dashboard.
+ * Categories are sorted by name with "Uncategorized" last. Cached in Redis for 5
+ * minutes; `?forceRefresh=true` skips the cache read and refetches from Discord.
+ */
 router.get(
 	"/",
 	requireAuth,
+	requireGuildSettingsAccess("view"),
 	async (
 		req: express.Request<{ guildId: string }>,
 		res: express.Response,
@@ -45,7 +54,7 @@ router.get(
 		let channels: APIGuildChannel[] | null = null;
 
 		if (forceRefresh === false) {
-			const value = await redisClient.get(key);
+			const value = await cacheGet(key);
 
 			if (value) {
 				const cachedChannels = CachedChannelsSchema.safeParse(
@@ -60,82 +69,9 @@ router.get(
 
 		channels = await fetchGuildChannels(guildId);
 
-		const categories = new Map<string, string>();
-		const categorizedChannels = new Map<string, ReturnedChannel[]>();
+		const returnedChannels = groupChannelsByCategory(channels);
 
-		channels.forEach((channel) => {
-			if (channel.type === ChannelType.GuildCategory) {
-				categories.set(channel.id, channel.name);
-			} else categories.set("Uncategorized", "Uncategorized");
-		});
-
-		Array.from(categories.keys()).forEach((categoryId) => {
-			if (categoryId !== "Uncategorized") {
-				const channelsInCategory = channels.filter(
-					(channel) =>
-						channel.parent_id === categoryId &&
-						channel.type !== ChannelType.GuildCategory,
-				);
-
-				const simplifiedChannelsInCategory: ReturnedChannel[] =
-					channelsInCategory.map((channel) => {
-						return {
-							id: channel.id,
-							name: channel.name,
-							type: channel.type,
-						};
-					});
-
-				const categoryName = categories.get(categoryId);
-				if (categoryName) {
-					categorizedChannels.set(categoryName, simplifiedChannelsInCategory);
-				}
-			} else {
-				const uncategorizedChannels = channels.filter(
-					(channel) =>
-						!channel.parent_id && channel.type !== ChannelType.GuildCategory,
-				);
-				const simplifiedUncategorizedChannels: ReturnedChannel[] =
-					uncategorizedChannels.map((channel) => {
-						return {
-							id: channel.id,
-							name: channel.name,
-							type: channel.type,
-						};
-					});
-
-				const categoryName = categories.get(categoryId) ?? "Uncategorized";
-				categorizedChannels.set(categoryName, simplifiedUncategorizedChannels);
-			}
-		});
-
-		const returnedChannels: ReturnedChannelGroup[] = Array.from(
-			categorizedChannels.entries(),
-		)
-			.map(([category, children]) => ({
-				category,
-				children,
-			}))
-			.sort((a, b) => {
-				if (a.category === "Uncategorized") return 1;
-				if (b.category === "Uncategorized") return -1;
-				return a.category.localeCompare(b.category);
-			});
-
-		await redisClient.set(key, JSON.stringify(returnedChannels), {
-			EX: 300, // Cache for 5 minutes
-		});
+		await cacheSet(key, JSON.stringify(returnedChannels), 300); // Cache for 5 minutes
 		return res.status(200).send(returnedChannels);
 	},
 );
-
-interface ReturnedChannel {
-	id: string;
-	name: string;
-	type?: ChannelType;
-}
-
-interface ReturnedChannelGroup {
-	category: string;
-	children: ReturnedChannel[];
-}

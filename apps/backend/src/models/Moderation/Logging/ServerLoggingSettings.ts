@@ -1,4 +1,4 @@
-import { Column, Entity, OneToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from "typeorm";
 import { Guild } from "./../../Guild";
 
 @Entity()
@@ -9,25 +9,26 @@ export class LoggingSettings {
 	@OneToOne(() => Guild, (guild) => guild.loggingSettings, {
 		onDelete: "CASCADE",
 	})
+	@JoinColumn({ name: "guildId" }) // guildId is both the primary key and the foreign key to Guild
 	guild!: Guild;
 
 	@Column({ type: "boolean", default: false })
 	enabled!: boolean;
 
 	@Column({ type: "varchar", default: null, nullable: true })
-	defaultLoggingChannelId!: string;
+	defaultLoggingChannelId!: string | null;
 
 	@Column({ type: "boolean", default: false })
 	logModerationActions!: boolean;
 
 	@Column({ type: "varchar", nullable: true }) // If null, uses default channel
-	moderationLogChannelId!: string;
+	moderationLogChannelId!: string | null;
 
 	@Column({ type: "boolean", default: false })
 	logMessageEditsAndDeletions!: boolean;
 
 	@Column({ type: "varchar", nullable: true }) // If null, uses default channel
-	messageLogChannelId!: string;
+	messageLogChannelId!: string | null;
 
 	@Column({ type: "boolean", default: false })
 	logMemberJoins!: boolean;
@@ -36,10 +37,10 @@ export class LoggingSettings {
 	logMemberLeaves!: boolean;
 
 	@Column({ type: "varchar", nullable: true }) // If null, auto-disable
-	logMemberJoinChannelId!: string;
+	logMemberJoinChannelId!: string | null;
 
 	@Column({ type: "varchar", nullable: true }) // If null, auto-disable
-	logMemberLeaveChannelId!: string;
+	logMemberLeaveChannelId!: string | null;
 
 	constructor(guildId: string) {
 		this.guildId = guildId;

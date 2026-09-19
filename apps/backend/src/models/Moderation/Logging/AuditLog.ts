@@ -20,9 +20,11 @@ export class AuditLog {
 	@Column({ type: "varchar" })
 	action!: AuditAction;
 
+	// The user the action was performed on, if any
 	@ManyToOne(() => User, { onDelete: "SET NULL", eager: false, nullable: true })
 	targetUser?: User | null;
 
+	// The user who performed the action
 	@ManyToOne(() => User, { onDelete: "SET NULL", eager: false, nullable: true })
 	user?: User | null;
 

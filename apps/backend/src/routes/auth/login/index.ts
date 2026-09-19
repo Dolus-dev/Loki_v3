@@ -9,6 +9,9 @@ const REDIRECT_URI = env.DISCORD_REDIRECT_URI;
 const SCOPES = ["identify", "guilds", "guilds.members.read"];
 
 router.get("/", async (req, res) => {
+	// Random state stored in a cookie and echoed back by Discord; the callback
+	// route compares the two to protect against CSRF. "lax" is required (not
+	// "strict") so the cookie is still sent on Discord's redirect back to us.
 	const state = crypto.randomBytes(16).toString("hex");
 	res.cookie("auth_state", state, {
 		httpOnly: true,
@@ -23,7 +26,7 @@ router.get("/", async (req, res) => {
 	authUrl.searchParams.set("scope", SCOPES.join(" "));
 	authUrl.searchParams.set("state", state);
 
-	console.log("Redirecting to Discord OAuth2 URL:", authUrl.toString());
+	console.log("Redirecting to Discord OAuth2 login");
 
 	void res.redirect(authUrl.toString());
 	return;

@@ -3,15 +3,18 @@ import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { StarboardSettings } from "../../../../../models/Fun/Starboard";
 import { AppDataSource } from "../../../../..";
 import z from "zod";
+import { discordSnowflake } from "../../../../../lib/validation";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
+import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 
 export const router = express.Router({ mergeParams: true });
 
-// Retrieve starboard settings for a guild
+// Retrieve starboard settings for a guild (a default row is created on first read)
 router.get(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("view"),
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 
@@ -38,9 +41,9 @@ router.get(
 
 const patchItems = z.object({
 	enabled: z.boolean(),
-	starboardChannelId: z.string(),
-	starThreshold: z.number().min(1),
-	reactionEmoji: z.string(),
+	starboardChannelId: discordSnowflake.nullable(), // null disables the starboard
+	starThreshold: z.number().int().min(1),
+	reactionEmoji: z.string().min(1).max(100),
 });
 
 // Update starboard settings for a guild
@@ -48,6 +51,7 @@ router.patch(
 	"/",
 	requireAuth,
 	requireGuildSettingsAccess("edit"),
+	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
 
@@ -71,7 +75,8 @@ router.patch(
 					guildId: guildId,
 					enabled,
 					starboardChannelId,
-					reactionThreshold: starThreshold,
+					// The API calls it starThreshold; the entity column is reactionThreshold
+				reactionThreshold: starThreshold,
 					reactionEmoji,
 				},
 				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },

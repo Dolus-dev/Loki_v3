@@ -42,6 +42,7 @@ export class ModerationEvents {
 	@Column({ type: "timestamp", nullable: true })
 	expiresAt!: Date | null; // For temporary bans/mutes/timeouts
 
+	// The moderated user, the moderator who issued the event, and whoever last edited its reason
 	@ManyToOne(() => User, (user) => user.moderationEventsReceived)
 	issuedTo: User;
 
@@ -53,8 +54,6 @@ export class ModerationEvents {
 
 	@ManyToOne(() => Guild, (guild) => guild.moderationEvents)
 	guild: Guild;
-
-	// TODO: Add column relationship linking to Guild entity when created
 
 	@CreateDateColumn()
 	createdAt!: Date;
