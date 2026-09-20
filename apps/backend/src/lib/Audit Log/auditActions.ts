@@ -20,6 +20,9 @@ export const AuditAction = {
 			KICK: "MODERATION_EVENT_UPDATE_KICK",
 			NOTE: "MODERATION_EVENT_UPDATE_NOTE",
 		},
+		// A newer event of the same action type replaced an event that was still active.
+		// This is how a wrong expiry is corrected, so the old and new expiry are in the details.
+		SUPERSEDE: "MODERATION_EVENT_SUPERSEDE",
 		// Attaching, changing or removing the evidence of an event (any event type)
 		EVIDENCE: {
 			ADD: "MODERATION_EVENT_EVIDENCE_ADD",
