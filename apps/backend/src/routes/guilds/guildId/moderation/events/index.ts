@@ -23,6 +23,7 @@ import {
 	parseRowId,
 } from "../../../../../lib/pagination";
 import { discordSnowflake } from "../../../../../lib/validation";
+import { describeEventChanges } from "../../../../../lib/moderationEventChanges";
 export const router = express.Router({ mergeParams: true });
 
 /**
@@ -292,6 +293,22 @@ const createModerationEvent = z.object({
 		.optional()
 		.transform((str) => str || "No reason provided"),
 	eventType: z.enum(["ban", "mute", "warn", "timeout", "kick", "note"]),
+
+	// Evidence the moderator attached when using the command: a link to it, and/or the ID
+	// of the Discord message that contains it. Only http(s) links are accepted, so the
+	// dashboard can safely show the URL as a link.
+	evidenceUrl: z.httpUrl().max(2048, "Evidence URL cannot exceed 2048 characters").optional(),
+	evidenceMessageId: discordSnowflake.optional(),
+
+	// When a temporary action (ban, mute, timeout, ...) ends. Omit it for a permanent one.
+	// An ISO 8601 date-time with a timezone, e.g. "2030-01-01T12:00:00Z", in the future.
+	expiresAt: z.iso
+		.datetime({ offset: true, message: "expiresAt must be an ISO 8601 date-time with a timezone" })
+		.transform((value) => new Date(value))
+		.refine((date) => date.getTime() > Date.now(), {
+			message: "expiresAt must be in the future",
+		})
+		.optional(),
 });
 
 router.post(
@@ -308,7 +325,8 @@ router.post(
 			return res.status(400).send({ error: "Invalid userId format" });
 		}
 
-		const { reason, eventType } = parseResult.data;
+		const { reason, eventType, evidenceUrl, evidenceMessageId, expiresAt } =
+			parseResult.data;
 
 		const issuedBy = resolveActorId(
 			res,
@@ -358,6 +376,9 @@ router.post(
 			guild: guild,
 			reason,
 			eventType,
+			evidenceUrl: evidenceUrl ?? null,
+			evidenceMessageId: evidenceMessageId ?? null,
+			expiresAt: expiresAt ?? null,
 		});
 
 		try {
@@ -396,12 +417,43 @@ router.post(
 	},
 );
 
-const editModerationEvent = z.object({
-	reason: z.string().trim().max(512, "Reason cannot exceed 512 characters"),
+// Send only what should change. For the evidence fields, null removes the evidence.
+const editModerationEvent = z
+	.object({
+		reason: z
+			.string()
+			.trim()
+			.min(1, "Reason cannot be empty")
+			.max(512, "Reason cannot exceed 512 characters")
+			.optional(),
+		evidenceUrl: z
+			.httpUrl()
+			.max(2048, "Evidence URL cannot exceed 2048 characters")
+			.nullable()
+			.optional(),
+		evidenceMessageId: discordSnowflake.nullable().optional(),
 
-	// Required for the bot; ignored for dashboard users (see resolveActorId)
-	editedBy: discordSnowflake.optional(),
-});
+		// Why the moderator is making this change. It is recorded in the audit log with
+		// every change, so it is always required.
+		changeReason: z
+			.string()
+			.trim()
+			.min(1, "A reason for the change is required")
+			.max(512, "Reason for the change cannot exceed 512 characters"),
+
+		// Required for the bot; ignored for dashboard users (see resolveActorId)
+		editedBy: discordSnowflake.optional(),
+	})
+	.refine(
+		(body) =>
+			body.reason !== undefined ||
+			body.evidenceUrl !== undefined ||
+			body.evidenceMessageId !== undefined,
+		{
+			message:
+				"Provide at least one of reason, evidenceUrl or evidenceMessageId to change",
+		},
+	);
 
 router.patch(
 	"/:eventId",
@@ -423,7 +475,8 @@ router.patch(
 			return res.status(400).send(z.treeifyError(parseResult.error));
 		}
 
-		const { reason } = parseResult.data;
+		const { reason, evidenceUrl, evidenceMessageId, changeReason } =
+			parseResult.data;
 
 		const editedBy = resolveActorId(
 			res,
@@ -434,61 +487,93 @@ router.patch(
 			return res.status(400).send({ error: "editedBy is required" });
 		}
 
-		const eventRepository = AppDataSource.getRepository(ModerationEvents);
 		const userRepository = AppDataSource.getRepository(User);
 
-		const [editingUser, eventToEdit] = await Promise.all([
-			userRepository
-				.upsert(
-					{ id: editedBy },
-					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
-				)
-				.then(() => userRepository.findOneBy({ id: editedBy })),
-			// Scoped to the URL's guild so one guild can't edit another's events
-			eventRepository.findOne({
-				where: { id: eventRowId, guild: { id: guildId } },
-				relations: ["guild", "issuedTo"],
-			}),
-		]);
+		const editingUser = await userRepository
+			.upsert(
+				{ id: editedBy },
+				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
+			)
+			.then(() => userRepository.findOneBy({ id: editedBy }));
+
 		if (!editingUser) {
 			return res
 				.status(500)
 				.send({ error: "Failed to create/fetch editing user" });
 		}
 
-		if (!eventToEdit) {
-			return res.status(404).send({ error: "Moderation event not found" });
-		}
-
-		eventToEdit.reason = reason;
-		eventToEdit.lastUpdatedBy = editingUser;
-
 		try {
-			// The edit and its audit entry are saved together: if one fails, neither is kept
-			await AppDataSource.transaction(async (manager) => {
-				await manager.getRepository(ModerationEvents).save(eventToEdit);
+			// Everything happens in one transaction: the event's new values and one audit entry
+			// per change are saved together, or not at all.
+			const outcome = await AppDataSource.transaction(async (manager) => {
+				// Lock the event first, so two moderators editing at the same moment can't both
+				// record the same "old" values in the audit log.
+				const locked = await manager
+					.createQueryBuilder(ModerationEvents, "event")
+					.setLock("pessimistic_write")
+					.where("event.id = :id", { id: eventRowId })
+					.getOne();
+				if (!locked) {
+					return null;
+				}
 
-				await createAuditLogEntry(
-					{
-						action:
-							AuditAction.MODERATION_EVENT.UPDATE[
-								eventToEdit.eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.UPDATE
-							],
-						userId: editingUser.id,
-						targetUserId: eventToEdit.issuedTo.id,
-						guildId: eventToEdit.guild.id,
-						details: `Edited ${eventToEdit.eventType} moderation event with ID ${eventToEdit.id}`,
-					},
-					manager,
-				);
+				// Scoped to the URL's guild so one guild can't edit another's events
+				const event = await manager.getRepository(ModerationEvents).findOne({
+					where: { id: eventRowId, guild: { id: guildId } },
+					relations: ["guild", "issuedTo"],
+				});
+				if (!event) {
+					return null;
+				}
+
+				const { after, changes } = describeEventChanges(event, {
+					reason,
+					evidenceUrl,
+					evidenceMessageId,
+					changeReason,
+				});
+
+				if (changes.length === 0) {
+					return { eventId: event.id, changes };
+				}
+
+				event.reason = after.reason;
+				event.evidenceUrl = after.evidenceUrl;
+				event.evidenceMessageId = after.evidenceMessageId;
+				event.lastUpdatedBy = editingUser;
+				await manager.getRepository(ModerationEvents).save(event);
+
+				for (const change of changes) {
+					await createAuditLogEntry(
+						{
+							action: change.action,
+							userId: editingUser.id,
+							targetUserId: event.issuedTo.id,
+							guildId: event.guild.id,
+							details: change.details,
+						},
+						manager,
+					);
+				}
+
+				return { eventId: event.id, changes };
 			});
 
+			if (!outcome) {
+				return res.status(404).send({ error: "Moderation event not found" });
+			}
+
 			console.log(
-				`Moderation event edited: ${eventToEdit.id} by user ${editedBy}`,
+				`Moderation event edited: ${outcome.eventId} by user ${editedBy} (${outcome.changes.length} change(s))`,
 			);
 			return res.status(200).send({
-				message: "Moderation event edited successfully",
-				eventId: eventToEdit.id,
+				message:
+					outcome.changes.length > 0
+						? "Moderation event edited successfully"
+						: "No changes were made",
+				eventId: outcome.eventId,
+				// The audit actions recorded, one per kind of change
+				changes: outcome.changes.map((change) => change.action),
 			});
 		} catch (error) {
 			console.error("Error saving edited moderation event:", error);
