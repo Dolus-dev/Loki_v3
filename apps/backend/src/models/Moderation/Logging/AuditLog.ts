@@ -28,7 +28,7 @@ export class AuditLog {
 	@ManyToOne(() => User, { onDelete: "SET NULL", eager: false, nullable: true })
 	user?: User | null;
 
-	@CreateDateColumn()
+	@CreateDateColumn({ type: "timestamptz" })
 	createdAt!: Date;
 
 	@Column({ type: "text", nullable: true })

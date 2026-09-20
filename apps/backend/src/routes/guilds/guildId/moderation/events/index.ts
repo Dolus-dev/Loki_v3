@@ -24,6 +24,12 @@ import {
 } from "../../../../../lib/pagination";
 import { discordSnowflake } from "../../../../../lib/validation";
 import { describeEventChanges } from "../../../../../lib/moderationEventChanges";
+import {
+	describeSupersede,
+	isLastingEventType,
+	linkSuperseded,
+	supersedeActiveEvents,
+} from "../../../../../lib/moderationLifecycle";
 export const router = express.Router({ mergeParams: true });
 
 /**
@@ -379,12 +385,30 @@ router.post(
 			evidenceUrl: evidenceUrl ?? null,
 			evidenceMessageId: evidenceMessageId ?? null,
 			expiresAt: expiresAt ?? null,
+			// Bans, mutes and timeouts are in effect from now; warns, kicks and notes have no status
+			status: isLastingEventType(eventType) ? "active" : null,
 		});
 
 		try {
-			// The event and its audit entry are saved together: if one fails, neither is kept
-			await AppDataSource.transaction(async (manager) => {
+			// The event, the replacement of an older active event, and the audit entries are
+			// saved together: if any step fails, none of them are kept
+			const superseded = await AppDataSource.transaction(async (manager) => {
+				// A newer event of the same action type replaces the one still in effect, whatever
+				// its expiry (a new permanent ban replaces an earlier temporary one)
+				const supersededEvents = isLastingEventType(eventType)
+					? await supersedeActiveEvents(manager, {
+							guildId: guild.id,
+							userId: targetUser.id,
+							eventType,
+						})
+					: [];
+
 				await manager.getRepository(ModerationEvents).save(newEvent);
+				await linkSuperseded(
+					manager,
+					supersededEvents.map((old) => old.id),
+					newEvent.id,
+				);
 
 				await createAuditLogEntry(
 					{
@@ -399,15 +423,36 @@ router.post(
 					},
 					manager,
 				);
+
+				for (const old of supersededEvents) {
+					await createAuditLogEntry(
+						{
+							action: AuditAction.MODERATION_EVENT.SUPERSEDE,
+							userId: issuingUser.id,
+							targetUserId: targetUser.id,
+							guildId: guild.id,
+							details: describeSupersede(eventType, old, {
+								id: newEvent.id,
+								expiresAt: newEvent.expiresAt,
+							}),
+						},
+						manager,
+					);
+				}
+
+				return supersededEvents;
 			});
 
 			console.log(
 				`Moderation event created: ${newEvent.id} against user ${userId}`,
 			);
 
-			return res
-				.status(201)
-				.send({ message: "Moderation event created", eventId: newEvent.id });
+			return res.status(201).send({
+				message: "Moderation event created",
+				eventId: newEvent.id,
+				// Older events of the same action type that this one replaced
+				supersededEventIds: superseded.map((old) => old.id),
+			});
 		} catch (error) {
 			console.error("Error saving moderation event:", error);
 			return res
