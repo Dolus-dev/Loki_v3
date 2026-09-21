@@ -18,7 +18,6 @@ export class BanSettings {
 	@Column({ type: "boolean", default: false })
 	evidenceRequired!: boolean;
 
-	// Not currently exposed by the /settings/bans routes
 	@Column({ type: "boolean", default: false })
 	enabled!: boolean;
 
