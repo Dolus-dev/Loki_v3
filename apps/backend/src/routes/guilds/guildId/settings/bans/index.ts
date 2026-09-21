@@ -40,6 +40,7 @@ const patchItems = z.object({
 	reasonRequired: z.boolean(),
 	evidenceRequired: z.boolean(),
 	defaultBanDurationSeconds: z.number().int().min(0),
+	enabled: z.boolean(),
 });
 
 router.patch(
@@ -55,8 +56,12 @@ router.patch(
 				.status(400)
 				.json({ error: "Invalid request body", details: parseResult.error });
 		}
-		const { reasonRequired, evidenceRequired, defaultBanDurationSeconds } =
-			parseResult.data;
+		const {
+			reasonRequired,
+			evidenceRequired,
+			defaultBanDurationSeconds,
+			enabled,
+		} = parseResult.data;
 
 		const banSettingsRepo = AppDataSource.getRepository(BanSettings);
 
@@ -67,6 +72,7 @@ router.patch(
 					reasonRequired,
 					evidenceRequired,
 					defaultBanDurationSeconds,
+					enabled,
 				},
 				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
 			);
