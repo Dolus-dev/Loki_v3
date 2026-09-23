@@ -22,7 +22,7 @@ import { MuteSettings } from "./models/Moderation/Action Settings/MuteSettings";
 import { TimeoutSettings } from "./models/Moderation/Action Settings/TimeoutSettings";
 import { WarnSettings } from "./models/Moderation/Action Settings/WarnSettings";
 import { StarboardSettings } from "./models/Fun/Starboard";
-import { ThrowCommand } from "./models/Fun/Throw";
+import { ThrowSettings } from "./models/Fun/Throw";
 
 import { createClient, createClientPool } from "redis";
 
@@ -111,7 +111,7 @@ export const AppDataSource = new DataSource({
 		TimeoutSettings,
 		WarnSettings,
 		StarboardSettings,
-		ThrowCommand,
+		ThrowSettings,
 	],
 	// Outside production the schema is auto-synced to match the entities. Data is
 	// kept unless DB_RESET=true, which drops everything on every start.

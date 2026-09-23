@@ -6,7 +6,7 @@ export class ThrowSettings {
 	@PrimaryColumn({ type: "varchar" })
 	guildId!: string;
 
-	@OneToOne(() => Guild, (guild) => guild.throwCommand, {
+	@OneToOne(() => Guild, (guild) => guild.throwSettings, {
 		onDelete: "CASCADE",
 	})
 	@JoinColumn({ name: "guildId" }) // guildId is both the primary key and the foreign key to Guild

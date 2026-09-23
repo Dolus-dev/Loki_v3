@@ -16,7 +16,7 @@ import { WarnSettings } from "./Moderation/Action Settings/WarnSettings";
 import { TicketSettings } from "./Tickets/TicketSettings";
 import { LoggingSettings } from "./Moderation/Logging/ServerLoggingSettings";
 import { Tickets } from "./Tickets/Tickets";
-import { ThrowCommand } from "./Fun/Throw";
+import { ThrowSettings } from "./Fun/Throw";
 import { StarboardSettings } from "./Fun/Starboard";
 
 /**
@@ -91,11 +91,11 @@ export class Guild {
 	@OneToMany(() => Tickets, (tickets) => tickets.guild)
 	tickets!: Tickets[];
 
-	@OneToOne(() => ThrowCommand, (settings) => settings.guild, {
+	@OneToOne(() => ThrowSettings, (settings) => settings.guild, {
 		cascade: true,
 		eager: false,
 	})
-	throwCommand!: ThrowCommand;
+	throwSettings!: ThrowSettings;
 
 	@OneToOne(() => StarboardSettings, (settings) => settings.guild, {
 		cascade: true,
