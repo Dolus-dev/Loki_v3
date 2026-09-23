@@ -1,5 +1,5 @@
 import express from "express";
-import { z } from "zod";
+import { z, treeifyError } from "zod";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
@@ -16,24 +16,29 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
-		const warnSettingsRepo = AppDataSource.getRepository(WarnSettings);
+		try {
+			const warnSettingsRepo = AppDataSource.getRepository(WarnSettings);
 
-		await warnSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
+			await warnSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
 
-		const settings = await warnSettingsRepo.findOneBy({ guildId });
+			const settings = await warnSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve warn settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve warn settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve warn settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve warn settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
@@ -55,7 +60,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 		const { reasonRequired, evidenceRequired, enabled } = parseResult.data;
 
@@ -73,7 +78,8 @@ router.patch(
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res.status(500).send({ error: "Failed to update warn settings" });
+			console.error("Failed to update warn settings:", error);
+			return res.status(500).json({ error: "Failed to update warn settings" });
 		}
 	},
 );

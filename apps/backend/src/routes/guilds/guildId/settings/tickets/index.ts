@@ -4,7 +4,7 @@ import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requi
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 import { AppDataSource } from "../../../../..";
 import { TicketSettings } from "../../../../../models/Tickets/TicketSettings";
-import z from "zod";
+import z, { treeifyError } from "zod";
 import { discordSnowflake } from "../../../../../lib/validation";
 
 export const router = express.Router({ mergeParams: true });
@@ -17,24 +17,29 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
-		const ticketSettingsRepo = AppDataSource.getRepository(TicketSettings);
+		try {
+			const ticketSettingsRepo = AppDataSource.getRepository(TicketSettings);
 
-		await ticketSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
+			await ticketSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
 
-		const settings = await ticketSettingsRepo.findOneBy({ guildId });
+			const settings = await ticketSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve ticket settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve ticket settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve ticket settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve ticket settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
@@ -44,7 +49,7 @@ const patchItems = z.object({
 	notificationChannelId: discordSnowflake.nullable(),
 	categoryId: discordSnowflake.nullable(),
 	archiveCategoryId: discordSnowflake.nullable(),
-	ticketOpenMessage: z.string(),
+	ticketOpenMessage: z.string().min(1).max(2000),
 });
 
 router.patch(
@@ -58,7 +63,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 		const {
 			enabled,
@@ -84,9 +89,8 @@ router.patch(
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res
-				.status(500)
-				.json({ error: "Failed to update ticket settings" });
+			console.error("Failed to update ticket settings:", error);
+			return res.status(500).json({ error: "Failed to update ticket settings" });
 		}
 	},
 );

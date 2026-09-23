@@ -2,7 +2,7 @@ import express from "express";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { LoggingSettings } from "../../../../../models/Moderation/Logging/ServerLoggingSettings";
 import { AppDataSource } from "../../../../..";
-import z from "zod";
+import z, { treeifyError } from "zod";
 import { discordSnowflake } from "../../../../../lib/validation";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
@@ -16,25 +16,30 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
+		try {
 
-		const logSettingsRepo = AppDataSource.getRepository(LoggingSettings);
+			const logSettingsRepo = AppDataSource.getRepository(LoggingSettings);
 
-		await logSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
+			await logSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
 
-		const settings = await logSettingsRepo.findOneBy({ guildId });
+			const settings = await logSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve logging settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve logging settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve logging settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve logging settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
@@ -66,7 +71,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 
 		const {
@@ -103,9 +108,8 @@ router.patch(
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res
-				.status(500)
-				.json({ error: "Failed to update logging settings" });
+			console.error("Failed to update logging settings:", error);
+			return res.status(500).json({ error: "Failed to update logging settings" });
 		}
 	},
 );

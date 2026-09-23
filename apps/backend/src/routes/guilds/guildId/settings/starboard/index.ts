@@ -2,8 +2,8 @@ import express from "express";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { StarboardSettings } from "../../../../../models/Fun/Starboard";
 import { AppDataSource } from "../../../../..";
-import z from "zod";
-import { discordSnowflake } from "../../../../../lib/validation";
+import z, { treeifyError } from "zod";
+import { discordSnowflake, MAX_INT32 } from "../../../../../lib/validation";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 
@@ -17,32 +17,37 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
+		try {
 
-		const starboardSettingsRepo =
-			AppDataSource.getRepository(StarboardSettings);
-		await starboardSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
+			const starboardSettingsRepo =
+				AppDataSource.getRepository(StarboardSettings);
+			await starboardSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
 
-		const settings = await starboardSettingsRepo.findOneBy({ guildId });
+			const settings = await starboardSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve starboard settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve starboard settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve starboard settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve starboard settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
 const patchItems = z.object({
 	enabled: z.boolean(),
 	starboardChannelId: discordSnowflake.nullable(), // null disables the starboard
-	starThreshold: z.number().int().min(1),
+	starThreshold: z.number().int().min(1).max(MAX_INT32),
 	reactionEmoji: z.string().min(1).max(100),
 });
 
@@ -60,7 +65,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 
 		const { enabled, starboardChannelId, starThreshold, reactionEmoji } =
@@ -76,16 +81,15 @@ router.patch(
 					enabled,
 					starboardChannelId,
 					// The API calls it starThreshold; the entity column is reactionThreshold
-				reactionThreshold: starThreshold,
+					reactionThreshold: starThreshold,
 					reactionEmoji,
 				},
 				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res
-				.status(500)
-				.json({ error: "Failed to update starboard settings" });
+			console.error("Failed to update starboard settings:", error);
+			return res.status(500).json({ error: "Failed to update starboard settings" });
 		}
 	},
 );

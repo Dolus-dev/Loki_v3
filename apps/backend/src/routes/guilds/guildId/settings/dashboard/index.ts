@@ -13,7 +13,7 @@ import {
 	dashboardSettingsCacheKey,
 } from "../../../../../lib/guildAccess";
 import { Guild } from "../../../../../models/Guild";
-import { discordSnowflake } from "../../../../../lib/validation";
+import { snowflakeList } from "../../../../../lib/validation";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -39,12 +39,17 @@ router.get(
 		let settings: DashboardSettings | FetchedDashboardSettings | null = null;
 
 		if (value) {
-			const cachedSettings = CachedDashboardSettingsSchema.safeParse(
-				JSON.parse(value),
-			);
-			if (cachedSettings.success) {
-				console.log("Cache hit for dashboard settings:", guildId);
-				return res.status(200).json(cachedSettings.data);
+			// A corrupt cache entry falls through to the database instead of failing the request
+			try {
+				const cachedSettings = CachedDashboardSettingsSchema.safeParse(
+					JSON.parse(value),
+				);
+				if (cachedSettings.success) {
+					console.log("Cache hit for dashboard settings:", guildId);
+					return res.status(200).json(cachedSettings.data);
+				}
+			} catch {
+				console.warn("Ignoring unparseable cached dashboard settings:", guildId);
 			}
 		}
 
@@ -86,8 +91,8 @@ interface FetchedDashboardSettings {
 
 // Update dashboard settings for a guild (which roles can view/edit the dashboard)
 const patchItems = z.object({
-	rolesWithDashboardViewAccess: z.array(discordSnowflake),
-	rolesWithDashboardEditAccess: z.array(discordSnowflake),
+	rolesWithDashboardViewAccess: snowflakeList(250),
+	rolesWithDashboardEditAccess: snowflakeList(250),
 });
 // Changing who has dashboard access needs the Manage Server permission in the guild itself;
 // having a dashboard "edit" role isn't enough, or a role could grant itself (or anyone) more access

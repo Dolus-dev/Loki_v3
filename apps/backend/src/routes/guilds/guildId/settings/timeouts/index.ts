@@ -1,11 +1,13 @@
 import express from "express";
-import { z } from "zod";
+import { z, treeifyError } from "zod";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 import { AppDataSource } from "../../../../..";
 import { TimeoutSettings } from "../../../../../models/Moderation/Action Settings/TimeoutSettings";
-import { time } from "console";
+
+// Discord caps a member timeout at 28 days
+const MAX_TIMEOUT_SECONDS = 28 * 24 * 60 * 60;
 
 export const router = express.Router({ mergeParams: true });
 
@@ -17,23 +19,28 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
-		const timeoutSettingsRepo = AppDataSource.getRepository(TimeoutSettings);
+		try {
+			const timeoutSettingsRepo = AppDataSource.getRepository(TimeoutSettings);
 
-		await timeoutSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
-		const settings = await timeoutSettingsRepo.findOneBy({ guildId });
+			await timeoutSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
+			const settings = await timeoutSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve timeout settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve timeout settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve timeout settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve timeout settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
@@ -41,7 +48,7 @@ router.get(
 const patchItems = z.object({
 	reasonRequired: z.boolean(),
 	evidenceRequired: z.boolean(),
-	defaultTimeoutDurationSeconds: z.number().int().min(0),
+	defaultTimeoutDurationSeconds: z.number().int().min(0).max(MAX_TIMEOUT_SECONDS),
 	enabled: z.boolean(),
 });
 
@@ -56,7 +63,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 
 		const {
@@ -81,9 +88,8 @@ router.patch(
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res
-				.status(500)
-				.json({ error: "Failed to update timeout settings", details: error });
+			console.error("Failed to update timeout settings:", error);
+			return res.status(500).json({ error: "Failed to update timeout settings" });
 		}
 	},
 );

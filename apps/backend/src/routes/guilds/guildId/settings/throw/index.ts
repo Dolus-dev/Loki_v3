@@ -1,11 +1,11 @@
 import express from "express";
-import { z } from "zod";
+import { z, treeifyError } from "zod";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 import { AppDataSource } from "../../../../..";
 import { ThrowSettings } from "../../../../../models/Fun/Throw";
-import { discordSnowflake } from "../../../../../lib/validation";
+import { durationSeconds, snowflakeList } from "../../../../../lib/validation";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -17,24 +17,29 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
-		const throwSettingsRepo = AppDataSource.getRepository(ThrowSettings);
+		try {
+			const throwSettingsRepo = AppDataSource.getRepository(ThrowSettings);
 
-		await throwSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
+			await throwSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
 
-		const settings = await throwSettingsRepo.findOneBy({ guildId });
+			const settings = await throwSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve throw settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve throw settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve throw settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve throw settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
@@ -42,13 +47,23 @@ router.get(
 const patchItems = z.object({
 	customItemsEnabled: z.boolean(),
 	customItemsOnly: z.boolean(),
-	customItems: z.array(z.string()),
-	cooldownSeconds: z.number().int().min(0),
+	customItems: z
+		.array(z.string().trim().min(1).max(200))
+		.max(100)
+		.transform((items) => [...new Set(items)]),
+	cooldownSeconds: durationSeconds,
 	redirectEnabled: z.boolean(),
-	redirectOptInRoleIds: z.array(discordSnowflake),
-	whitelistedChannels: z.array(discordSnowflake),
-	blacklistedChannels: z.array(discordSnowflake),
-});
+	redirectOptInRoleIds: snowflakeList(250),
+	whitelistedChannels: snowflakeList(500),
+	blacklistedChannels: snowflakeList(500),
+}).refine(
+	(data) =>
+		!data.whitelistedChannels.some((id) => data.blacklistedChannels.includes(id)),
+	{
+		message: "A channel cannot be both whitelisted and blacklisted",
+		path: ["blacklistedChannels"],
+	},
+);
 
 router.patch(
 	"/",
@@ -61,7 +76,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 
 		const { ...patchData } = parseResult.data;
@@ -78,9 +93,8 @@ router.patch(
 			);
 			return res.status(204).send();
 		} catch (error) {
-			return res
-				.status(500)
-				.json({ error: "Failed to update throw settings", details: error });
+			console.error("Failed to update throw settings:", error);
+			return res.status(500).json({ error: "Failed to update throw settings" });
 		}
 	},
 );

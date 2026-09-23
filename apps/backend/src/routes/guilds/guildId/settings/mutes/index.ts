@@ -2,11 +2,10 @@ import express from "express";
 import { requireAuth } from "../../../../../lib/Middlewares/requireAuth";
 import { AppDataSource } from "../../../../..";
 import { MuteSettings } from "../../../../../models/Moderation/Action Settings/MuteSettings";
-import z from "zod";
+import z, { treeifyError } from "zod";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
-import { parse } from "path";
-import { discordSnowflake } from "../../../../../lib/validation";
+import { discordSnowflake, durationSeconds } from "../../../../../lib/validation";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -18,24 +17,29 @@ router.get(
 	requireRegisteredGuild,
 	async (req: express.Request<{ guildId: string }>, res) => {
 		const { guildId } = req.params;
-		const muteSettingsRepo = AppDataSource.getRepository(MuteSettings);
+		try {
+			const muteSettingsRepo = AppDataSource.getRepository(MuteSettings);
 
-		await muteSettingsRepo.upsert(
-			{
-				guildId: guildId,
-			},
-			{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
-		);
+			await muteSettingsRepo.upsert(
+				{
+					guildId: guildId,
+				},
+				{ conflictPaths: ["guildId"], skipUpdateIfNoValuesChanged: true },
+			);
 
-		const settings = await muteSettingsRepo.findOneBy({ guildId });
+			const settings = await muteSettingsRepo.findOneBy({ guildId });
 
-		if (!settings) {
-			return res
-				.status(500)
-				.send({ error: "Failed to retrieve mute settings" });
+			if (!settings) {
+				return res
+					.status(500)
+					.send({ error: "Failed to retrieve mute settings" });
+			}
+
+			return res.status(200).json(settings);
+		} catch (error) {
+			console.error("Failed to retrieve mute settings:", error);
+			return res.status(500).send({ error: "Failed to retrieve mute settings" });
 		}
-
-		return res.status(200).json(settings);
 	},
 );
 
@@ -43,7 +47,7 @@ router.get(
 const patchItems = z.object({
 	reasonRequired: z.boolean(),
 	evidenceRequired: z.boolean(),
-	defaultMuteDurationSeconds: z.number().int().min(0),
+	defaultMuteDurationSeconds: durationSeconds,
 	muteRoleId: discordSnowflake.nullable(),
 	enabled: z.boolean(),
 });
@@ -59,7 +63,7 @@ router.patch(
 		if (!parseResult.success) {
 			return res
 				.status(400)
-				.json({ error: "Invalid request body", details: parseResult.error });
+				.json({ error: "Invalid request body", details: treeifyError(parseResult.error) });
 		}
 
 		const {
@@ -86,6 +90,7 @@ router.patch(
 			);
 			return res.status(204).send();
 		} catch (error) {
+			console.error("Failed to update mute settings:", error);
 			return res.status(500).json({ error: "Failed to update mute settings" });
 		}
 	},
