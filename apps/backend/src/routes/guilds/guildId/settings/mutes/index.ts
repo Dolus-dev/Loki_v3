@@ -6,6 +6,7 @@ import z from "zod";
 import { requireGuildSettingsAccess } from "../../../../../lib/Middlewares/requireGuildSettingsAccess";
 import { requireRegisteredGuild } from "../../../../../lib/Middlewares/requireRegisteredGuild";
 import { parse } from "path";
+import { discordSnowflake } from "../../../../../lib/validation";
 
 export const router = express.Router({ mergeParams: true });
 
@@ -43,7 +44,7 @@ const patchItems = z.object({
 	reasonRequired: z.boolean(),
 	evidenceRequired: z.boolean(),
 	defaultMuteDurationSeconds: z.number().int().min(0),
-	muteRoleId: z.string().nullable(),
+	muteRoleId: discordSnowflake.nullable(),
 	enabled: z.boolean(),
 });
 
