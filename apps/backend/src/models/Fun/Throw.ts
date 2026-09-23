@@ -2,7 +2,7 @@ import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from "typeorm";
 import { Guild } from "../Guild";
 
 @Entity()
-export class ThrowCommand {
+export class ThrowSettings {
 	@PrimaryColumn({ type: "varchar" })
 	guildId!: string;
 
