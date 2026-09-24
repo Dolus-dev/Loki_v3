@@ -10,6 +10,7 @@ import { ChannelType } from "discord-api-types/v10";
 import { useParams } from "next/navigation";
 import ChannelMultiSelectMenu from "../../../../ui/channel-multi-select-menu";
 import RoleMultiSelectMenu from "../../../../ui/role-multi-select-menu";
+import { API_URL, fetcher } from "../../../../lib/api";
 
 export default function ThrowCommandPage() {
 	const [customItemsEnabled, setCustomItemsEnabled] = useState(false);
@@ -24,17 +25,6 @@ export default function ThrowCommandPage() {
 		string[]
 	>([]);
 
-	const fetcher = async (url: string) => {
-		const res = await fetch(url, {
-			method: "GET",
-			credentials: "include",
-		});
-		if (!res.ok) {
-			throw new Error("Failed to fetch");
-		}
-		return res.json();
-	};
-
 	const { guildId } = useParams();
 
 	const {
@@ -42,8 +32,7 @@ export default function ThrowCommandPage() {
 		error: roleError,
 		isLoading: rolesLoading,
 	} = useSWR<APIRoleSimplified[]>(
-		process.env.BACKEND_API_URL ||
-			`http://localhost:4000/guilds/${guildId}/roles`,
+		`${API_URL}/guilds/${guildId}/roles`,
 		fetcher
 	);
 	const {
@@ -51,7 +40,7 @@ export default function ThrowCommandPage() {
 		error: channelError,
 		isLoading: channelIsLoading,
 	} = useSWR<ReturnedChannelGroup[]>(
-		`${process.env.BACKEND_API_URL || `http://localhost:4000`}/guilds/${guildId}/channels`,
+		`${API_URL}/guilds/${guildId}/channels`,
 		fetcher
 	);
 

@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 import useSWR from "swr";
+import { API_URL } from "../api";
 
 type User = {
 	id: string;
@@ -20,8 +21,6 @@ type UserContextType = {
 	error: boolean;
 	mutate: () => void;
 };
-
-const API_URL = process.env.BASE_API_URL || "http://localhost:4000";
 
 const userContext = createContext<UserContextType | null>(null);
 

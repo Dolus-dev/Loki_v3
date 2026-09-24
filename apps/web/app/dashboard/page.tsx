@@ -4,22 +4,9 @@ import Link from "next/link";
 import useSWR from "swr";
 import Image from "next/image";
 import { useUser } from "../lib/hooks/useUser";
+import { API_URL, fetcher } from "../lib/api";
 import { redirect } from "next/navigation";
 import { useEffect } from "react";
-
-const fetcher = async (url: string) => {
-	const res = await fetch(url, {
-		method: "GET",
-		credentials: "include",
-	});
-
-	if (!res.ok) {
-		throw new Error("Failed to fetch");
-	}
-	return res.json();
-};
-
-const backendUrl = process.env.BASE_API_URL ?? "http://localhost:4000";
 
 export default function ServerSelectorDashboardPage() {
 	const { user, isLoading: userLoading } = useUser();
@@ -30,7 +17,7 @@ export default function ServerSelectorDashboardPage() {
 
 	const { data, error, isLoading } = useSWR<
 		{ id: string; name: string; icon: string | null; setUp: boolean }[]
-	>(`${backendUrl}/users/@me/guilds`, fetcher);
+	>(`${API_URL}/users/@me/guilds`, fetcher);
 
 	return (
 		<>

@@ -8,6 +8,7 @@ import {
 	useState,
 } from "react";
 import useSWR from "swr";
+import { API_URL } from "../api";
 
 type GuildContextType = {
 	roles: { id: string; name: string; color: string | null }[];
@@ -17,7 +18,7 @@ type GuildContextType = {
 	mutate: () => void;
 };
 
-const BACKEND_API_URL = process.env.BASE_API_URL || "http://localhost:4000";
+const BACKEND_API_URL = API_URL;
 const DISCORD_API_URL = "https://discord.com/api/v10";
 
 const guildContext = createContext<GuildContextType | null>(null);

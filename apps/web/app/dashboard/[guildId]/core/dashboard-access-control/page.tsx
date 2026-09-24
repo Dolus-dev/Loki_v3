@@ -8,19 +8,10 @@ import RoleMultiSelectMenu, {
 } from "../../../../ui/role-multi-select-menu";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
+import { API_URL, fetcher } from "../../../../lib/api";
+import { useGuildSettings } from "../../../../lib/hooks/useGuildSettings";
 
 export default function DashboardAccessPage() {
-	const fetcher = async (url: string) => {
-		const res = await fetch(url, {
-			method: "GET",
-			credentials: "include",
-		});
-		if (!res.ok) {
-			throw new Error("Failed to fetch");
-		}
-		return res.json();
-	};
-
 	const { guildId } = useParams();
 
 	const {
@@ -28,7 +19,7 @@ export default function DashboardAccessPage() {
 		error: roleError,
 		isLoading: rolesLoading,
 	} = useSWR<APIRoleSimplified[]>(
-		`${process.env.BACKEND_API_URL || `http://localhost:4000`}/guilds/${guildId}/roles`,
+		`${API_URL}/guilds/${guildId}/roles`,
 		fetcher,
 	);
 
@@ -36,10 +27,8 @@ export default function DashboardAccessPage() {
 		data: accessData,
 		error: accessError,
 		isLoading: accessLoading,
-	} = useSWR<{ readAccess: string[]; editAccess: string[] }>(
-		`${process.env.BACKEND_API_URL || `http://localhost:4000`}/guilds/${guildId}/settings/dashboard`,
-		fetcher,
-	);
+		save,
+	} = useGuildSettings("dashboard");
 
 	const [selectedEditRoles, setSelectedEditRoles] = useState<string[]>([]);
 	const [selectedViewRoles, setSelectedViewRoles] = useState<string[]>([]);
@@ -126,22 +115,12 @@ export default function DashboardAccessPage() {
 					onClick={async (e) => {
 						e.preventDefault();
 
-						const res = await fetch(
-							`${process.env.BACKEND_API_URL || `http://localhost:4000`}/guilds/${guildId}/settings/dashboard`,
-							{
-								method: "PATCH",
-								credentials: "include",
-								headers: {
-									"Content-Type": "application/json",
-								},
-								body: JSON.stringify({
-									rolesWithDashboardViewAccess: [...selectedViewRoles],
-									rolesWithDashboardEditAccess: [...selectedEditRoles],
-								}),
-							},
-						);
+						const result = await save({
+							rolesWithDashboardViewAccess: [...selectedViewRoles],
+							rolesWithDashboardEditAccess: [...selectedEditRoles],
+						});
 
-						if (!res.ok) {
+						if (!result.ok) {
 							// Replace with custom toaster alert
 							alert("Failed to save changes.");
 							return;

@@ -14,13 +14,14 @@ import {
 } from "motion/react";
 import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
+import { API_URL } from "../../lib/api";
 
 const MotionLink = motion.create(Link);
 
 export default function RootLayoutHeader() {
 	const { user, isLoading } = useUser();
-	const loginRef = `${process.env.BASE_API_URL ?? "http://localhost:4000"}/auth/login`;
-	const logoutRef = `${process.env.BASE_API_URL ?? "http://localhost:4000"}/auth/logout`;
+	const loginRef = `${API_URL}/auth/login`;
+	const logoutRef = `${API_URL}/auth/logout`;
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const navRef = useRef<HTMLDivElement>(null);
