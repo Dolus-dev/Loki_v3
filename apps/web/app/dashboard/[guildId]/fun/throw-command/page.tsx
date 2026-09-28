@@ -1,10 +1,10 @@
 "use client";
 
 import { FaTriangleExclamation } from "react-icons/fa6";
-import * as motion from "motion/react-client";
 import { useState } from "react";
 import MultiSelectMenu from "../../../../ui/multi-select-menu";
 import NumberInput from "../../../../ui/number-input";
+import Toggle from "../../../../ui/toggle";
 import useSWR from "swr";
 import { ChannelType } from "discord-api-types/v10";
 import { useParams } from "next/navigation";
@@ -69,71 +69,16 @@ export default function ThrowCommandPage() {
 						</div>
 						<div className="flex flex-col gap-2 ml-10">
 							<div className="flex flex-col gap-6  mt-5">
-								<div className="flex flex-row gap-2  ">
-									<motion.input
-										name="customEnabled"
-										type="checkbox"
-										checked={customItemsEnabled}
-										onChange={(e) => setCustomItemsEnabled(e.target.checked)}
-										className=" sr-only "
-									/>
-									<motion.button
-										type="button"
-										onClick={() => setCustomItemsEnabled(!customItemsEnabled)}
-										aria-pressed={customItemsEnabled}
-										className={`relative inline-flex h-7 w-14 scale-90 items-center rounded-full cursor-pointer transition-colors overflow-hiddencursor-pointer 
-								${customItemsEnabled ? "bg-brand-600" : "bg-danger-400"} duration-600 `}>
-										<motion.span
-											className="inline-block h-5 w-5.5 rounded-full bg-white shadow"
-											layout
-											transition={{
-												type: "spring",
-												stiffness: 300,
-												damping: 50,
-											}}
-											animate={{
-												x: customItemsEnabled ? 31 : 1,
-											}}></motion.span>
-									</motion.button>
-									<label
-										htmlFor="custom-enabled"
-										className=" text-neutral-200 mt-1 font-semibold">
-										Enable Custom Items
-									</label>
-								</div>
-
-								<div className="flex flex-row gap-2 ">
-									<motion.input
-										name="customEnabled"
-										type="checkbox"
-										checked={disableDefaultItems}
-										onChange={(e) => setDisableDefaultItems(e.target.checked)}
-										className=" sr-only "
-									/>
-									<motion.button
-										type="button"
-										onClick={() => setDisableDefaultItems(!disableDefaultItems)}
-										aria-pressed={disableDefaultItems}
-										className={`relative inline-flex h-7 w-14 scale-90 items-center rounded-full cursor-pointer transition-colors overflow-hiddencursor-pointer 
-								${disableDefaultItems ? "bg-brand-600" : "bg-danger-400"} duration-600 `}>
-										<motion.span
-											className="inline-block h-5 w-5.5 rounded-full bg-white shadow"
-											layout
-											transition={{
-												type: "spring",
-												stiffness: 300,
-												damping: 50,
-											}}
-											animate={{
-												x: disableDefaultItems ? 31 : 1,
-											}}></motion.span>
-									</motion.button>
-									<label
-										htmlFor="default-items-disabled"
-										className=" text-neutral-200 mt-1 font-semibold">
-										Disable Default Items
-									</label>
-								</div>
+								<Toggle
+									checked={customItemsEnabled}
+									onChange={setCustomItemsEnabled}
+									label="Enable Custom Items"
+								/>
+								<Toggle
+									checked={disableDefaultItems}
+									onChange={setDisableDefaultItems}
+									label="Disable Default Items"
+								/>
 								<div className="text-neutral-300 text-sm max-w-130  -mt-3 -mb-2">
 									<p>
 										Disabling default items will prevent users from throwing the
@@ -161,38 +106,12 @@ export default function ThrowCommandPage() {
 								className="max-w-20"
 							/>
 
-							<div className="flex flex-row gap-2 mt-5">
-								<motion.input
-									name="redirect-enabled"
-									type="checkbox"
-									checked={redirectEnabled}
-									onChange={(e) => setRedirectEnabled(e.target.checked)}
-									className=" sr-only "
-								/>
-								<motion.button
-									type="button"
-									onClick={() => setRedirectEnabled(!redirectEnabled)}
-									aria-pressed={redirectEnabled}
-									className={`relative inline-flex h-7 w-14 scale-90 items-center rounded-full cursor-pointer transition-colors overflow-hiddencursor-pointer 
-								${redirectEnabled ? "bg-brand-600" : "bg-danger-400"} duration-600 `}>
-									<motion.span
-										className="inline-block h-5 w-5.5 rounded-full bg-white shadow"
-										layout
-										transition={{
-											type: "spring",
-											stiffness: 300,
-											damping: 50,
-										}}
-										animate={{
-											x: redirectEnabled ? 31 : 1,
-										}}></motion.span>
-								</motion.button>
-								<label
-									htmlFor="redirect-enabled"
-									className=" text-neutral-200 mt-1 font-semibold">
-									Enable Redirect Chance on Fail
-								</label>
-							</div>
+							<Toggle
+								checked={redirectEnabled}
+								onChange={setRedirectEnabled}
+								label="Enable Redirect Chance on Fail"
+								className="mt-5"
+							/>
 							<div className="text-neutral-300 text-sm max-w-130  ">
 								<p>
 									When enabled, there is a chance that when a user "fails"

@@ -1,24 +1,28 @@
 {
   "name": "discord bot",
-  "description": "A CommandKit project",
+  "description": "Loki's Discord bot",
   "version": "0.1.0",
   "type": "module",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "dev": "commandkit dev",
-    "build": "commandkit build",
-    "start": "commandkit start",
+    "dev": "tsx watch src/index.ts",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm run clean && tsc",
+    "start": "node --enable-source-maps dist/index.js",
+    "check-types": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{js,ts}\""
   },
   "dependencies": {
-    "@commandkit/analytics": "1.2.0-rc.12",
-    "commandkit": "1.2.0-rc.12",
-    "discord.js": "^14.25.1"
+    "consola": "^3.4.2",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.2.3",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@types/node": "^25.0.2",
     "prettier": "^3.6.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

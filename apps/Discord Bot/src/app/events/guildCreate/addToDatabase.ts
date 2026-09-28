@@ -1,19 +1,19 @@
-import { commandkit, type EventHandler } from 'commandkit';
-import { Logger } from 'commandkit/logger';
-import { addGuildToDbFailure } from '../../lib/customErrors/addGuildToDbFailure';
-
-const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
+import { Events } from 'discord.js';
+import { env } from '../../../config/env.js';
+import { Logger } from '../../../framework/logger.js';
+import { defineEvent } from '../../../framework/types.js';
+import { addGuildToDbFailure } from '../../lib/customErrors/addGuildToDbFailure.js';
 
 const MAX_RETRIES = 5;
 const INITIAL_DELAY_MS = 1000; // 1 second
 
 async function addGuildWithRetry(guild: { id: string; name: string; icon: string | null }, retries = 1): Promise<void> {
   try {
-    const res = await fetch(`${backendUrl}/guilds`, {
+    const res = await fetch(`${env.BACKEND_URL}/guilds`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bot ${process.env.BOT_API_SECRET}`,
+        Authorization: `Bot ${env.BOT_API_SECRET}`,
       },
       body: JSON.stringify({
         id: guild.id,
@@ -39,25 +39,27 @@ async function addGuildWithRetry(guild: { id: string; name: string; icon: string
   }
 }
 
-const handler: EventHandler<'guildCreate'> = async (guild, client) => {
-  Logger.info(`Joined a new guild: ${guild.name} (ID: ${guild.id})`);
-  // Add guild to database logic here
-  // Example: await Database.addGuild(guild.id, guild.name);
+export default defineEvent({
+  name: Events.GuildCreate,
 
-  try {
-    await addGuildWithRetry({
-      id: guild.id,
-      name: guild.name,
-      icon: guild.icon,
-    });
-    return;
-  } catch (error) {
-    Logger.error(`Could not add guild ${guild.id} to database: ${error}`);
-    client.emit(
-      'error',
-      new addGuildToDbFailure(`Failed to add a guild to database on server join`, guild.id, { cause: error as Error }),
-    );
-  }
-};
+  async execute(guild, client) {
+    Logger.info(`Joined a new guild: ${guild.name} (ID: ${guild.id})`);
 
-export default handler;
+    try {
+      await addGuildWithRetry({
+        id: guild.id,
+        name: guild.name,
+        icon: guild.icon,
+      });
+    } catch (error) {
+      Logger.error(`Could not add guild ${guild.id} to database: ${error}`);
+      // Hand the failure to the `error` event handlers (see events/error/addGuildToDbFailure.ts)
+      client.emit(
+        'error',
+        new addGuildToDbFailure(`Failed to add a guild to database on server join`, guild.id, {
+          cause: error as Error,
+        }),
+      );
+    }
+  },
+});

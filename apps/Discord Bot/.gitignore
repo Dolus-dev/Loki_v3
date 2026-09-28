@@ -7,11 +7,6 @@ build
 out
 dist
 
-# commandkit
-.commandkit
-dist
-compiled-commandkit.config.mjs
-
 # env
 **/*.env*
 !**/*.env.example*
