@@ -1,5 +1,4 @@
 import { Events } from 'discord.js';
-import { fileURLToPath } from 'node:url';
 import client from './app.js';
 import { env } from './config/env.js';
 import { loadCommands, registerCommandHandler, syncCommands } from './framework/commands.js';
@@ -16,17 +15,19 @@ import { Logger } from './framework/logger.js';
  *   3. The client logs in. Once Discord reports ready, the slash command definitions are synced.
  *
  * `pnpm dev` runs this file through tsx and restarts on every save. `pnpm build && pnpm start`
- * runs the compiled copy in `dist/`. The paths below are relative to this file, so they point at
- * `src/app` in dev and `dist/app` in production.
+ * runs the compiled copy in `dist/`.
  */
 
-const appDir = (folder: string) => fileURLToPath(new URL(`./app/${folder}`, import.meta.url));
+await loadCommands();
+registerCommandHandler(client);
+await loadEvents(client);
 
-const commands = await loadCommands(appDir('commands'));
-registerCommandHandler(client, commands);
-await loadEvents(client, appDir('events'));
-
-client.once(Events.ClientReady, (readyClient) => syncCommands(readyClient, commands));
+client.once(Events.ClientReady, (readyClient) =>
+  syncCommands(readyClient).catch((error) => {
+    // The bot still works with whatever Discord already has registered, so don't crash
+    Logger.error('Failed to sync slash commands with Discord:', error);
+  }),
+);
 
 // Last-resort safety net: a promise that fails without a .catch() anywhere gets logged here
 // instead of crashing the bot
@@ -49,5 +50,5 @@ try {
   // Usually a wrong BOT_TOKEN, or a privileged intent that isn't enabled in the developer portal
   Logger.error('Failed to log in to Discord:', error);
   await client.destroy();
-  process.exit(1);
+  process.exitCode = 1;
 }

@@ -26,8 +26,9 @@ const envSchema = z.object({
   BACKEND_URL: z.url().default('http://localhost:4000'),
   // Sent to the backend as `Authorization: Bot <secret>`; must match the backend's BOT_API_SECRET
   BOT_API_SECRET: z.string().min(1, 'BOT_API_SECRET is required'),
-  // When set, slash commands are registered to this one guild instead of globally. Guild commands
-  // update instantly, which is what you want while developing. Leave unset in production.
+  // Your private server. Commands marked `devOnly` (e.g. /reload-commands) are registered here
+  // and nowhere else; all other commands are global. The bot must be a member of this server.
+  // Unset = dev-only commands aren't registered at all.
   DEV_GUILD_ID: optionalSnowflake,
   // Channel that receives "joined a new guild" notices. Unset = don't post them.
   LOG_CHANNEL_ID: optionalSnowflake,

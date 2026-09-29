@@ -1,5 +1,6 @@
 import type { Client, ClientEvents } from 'discord.js';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadModules } from './loadModules.js';
 import { Logger } from './logger.js';
 
@@ -17,7 +18,12 @@ import { Logger } from './logger.js';
  * Errors thrown by a handler are caught and logged. They are deliberately NOT re-emitted as a
  * client `error` event: if the `error` handler itself threw, that would loop forever. To route a
  * failure to the `error` handlers on purpose, call `client.emit('error', yourError)` yourself.
+ *
+ * Unlike commands, events are only loaded at startup; changes to them need a restart.
  */
+
+// Relative to this file, so it's src/app/events under tsx and dist/app/events in production
+const EVENTS_DIR = fileURLToPath(new URL('../app/events', import.meta.url));
 
 // The loaded modules' event types aren't known until runtime, so the loader works with this
 // loose shape. Type safety for each file comes from `defineEvent` at the file itself.
@@ -27,7 +33,8 @@ interface AnyEvent {
   execute(...args: unknown[]): Promise<unknown> | void;
 }
 
-export async function loadEvents(client: Client, dir: string): Promise<void> {
+export async function loadEvents(client: Client): Promise<void> {
+  const dir = EVENTS_DIR;
   const modules = await loadModules(dir);
 
   for (const { file, value } of modules) {

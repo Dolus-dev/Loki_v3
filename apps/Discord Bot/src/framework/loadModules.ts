@@ -49,13 +49,24 @@ async function findModuleFiles(dir: string): Promise<string[]> {
   return files.sort();
 }
 
-export async function loadModules(dir: string): Promise<LoadedModule[]> {
+/**
+ * @param options.fresh Re-import files even if they were imported before, to pick up changes made
+ * on disk while the bot is running. Node caches every module by URL for the life of the process,
+ * so a changed query string (`?reload=...`) is the only way to get a new copy.
+ *
+ * Only the files found here are re-imported. Whatever *they* import (src/app/lib, framework,
+ * etc.) is still served from the cache, i.e. the version loaded at startup; changes there need
+ * a restart. Old copies also stay in memory (ES modules can't be unloaded), which is fine for
+ * an occasional manual reload.
+ */
+export async function loadModules(dir: string, options: { fresh?: boolean } = {}): Promise<LoadedModule[]> {
   const files = await findModuleFiles(dir);
+  const query = options.fresh ? `?reload=${Date.now()}` : '';
 
   return Promise.all(
     files.map(async (file) => {
       // import() needs a file:// URL rather than a path, otherwise Windows paths (C:\...) break
-      const module = await import(pathToFileURL(file).href);
+      const module = await import(pathToFileURL(file).href + query);
       return { file, value: module.default };
     }),
   );

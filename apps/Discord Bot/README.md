@@ -4,10 +4,16 @@ Plain [discord.js](https://discord.js.org) with a small file-based loader in `sr
 
 ## Running
 
-1. Copy `.env.example` to `.env` and fill it in. Set `DEV_GUILD_ID` to your test server so command changes show up instantly.
+1. Copy `.env.example` to `.env` and fill it in. Set `DEV_GUILD_ID` to your private server to get the dev-only commands.
 2. `pnpm dev`: runs `src/` through tsx and restarts on every save.
 
 For production: `pnpm build` (cleans and compiles to `dist/`), then `pnpm start`.
+
+### Updating commands without a restart
+
+Pull the new code, run `pnpm build`, then use `/reload-commands` in your `DEV_GUILD_ID` server. It re-reads every file in `app/commands` and re-syncs them with Discord. If a new file is broken, the reload is refused and the old commands keep running.
+
+Changes to events, `app/lib` helpers or `framework/` are only picked up by a restart.
 
 ## Layout
 
@@ -40,7 +46,9 @@ export default defineCommand({
 });
 ```
 
-Commands are synced to Discord automatically every time the bot starts.
+Commands are synced to Discord automatically every time the bot starts (and on `/reload-commands`).
+
+Add `devOnly: true` to register a command only in `DEV_GUILD_ID` instead of globally, for bot-maintenance tools that regular servers shouldn't see.
 
 ## Adding an event listener
 

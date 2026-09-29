@@ -28,6 +28,11 @@ export interface Command {
     name: string;
     toJSON(): RESTPostAPIChatInputApplicationCommandsJSONBody;
   };
+  /**
+   * Register this command only in DEV_GUILD_ID instead of globally, and refuse to run it anywhere
+   * else. Use it for bot-maintenance tools like /reload-commands.
+   */
+  devOnly?: boolean;
   /** Runs when someone uses the command. */
   execute(interaction: ChatInputCommandInteraction): Promise<unknown> | void;
   /**

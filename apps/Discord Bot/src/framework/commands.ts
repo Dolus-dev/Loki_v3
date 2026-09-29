@@ -7,45 +7,65 @@ import {
   type Client,
 } from 'discord.js';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { env } from '../config/env.js';
 import { loadModules } from './loadModules.js';
 import { Logger } from './logger.js';
 import type { Command } from './types.js';
 
 /**
- * Slash command handling, in three steps (all called from src/index.ts):
+ * Slash command handling. At startup (from src/index.ts):
  *
- * 1. `loadCommands` imports every file in `src/app/commands` and indexes them by command name.
+ * 1. `loadCommands` imports every file in `src/app/commands` into the `commands` collection.
  * 2. `registerCommandHandler` listens for interactions and routes each one to its command's
  *    `execute` (or `autocomplete`) function.
  * 3. `syncCommands` sends the command definitions to Discord once the bot is logged in, so the
  *    commands show up in the client's slash command menu.
+ *
+ * While running, `reloadCommands` (used by /reload-commands) repeats steps 1 and 3 with fresh
+ * copies of the files, so command changes can go live without a restart.
+ *
+ * Where commands are registered:
+ * - Normal commands are registered globally, in every server the bot is in.
+ * - Commands with `devOnly: true` are registered only in DEV_GUILD_ID, and refuse to run anywhere
+ *   else. If DEV_GUILD_ID isn't set, they aren't registered at all.
  */
 
-/** Loads and validates every command file, keyed by command name. */
-export async function loadCommands(dir: string): Promise<Collection<string, Command>> {
-  const commands = new Collection<string, Command>();
+// Relative to this file, so it's src/app/commands under tsx and dist/app/commands in production
+const COMMANDS_DIR = fileURLToPath(new URL('../app/commands', import.meta.url));
 
-  for (const { file, value } of await loadModules(dir)) {
-    const relative = path.relative(dir, file);
+/**
+ * Every loaded command, keyed by name. This one collection lives for the whole process: reloads
+ * swap its contents in place, so the interaction handler always sees the current set.
+ */
+export const commands = new Collection<string, Command>();
 
-    if (!isCommand(value)) {
-      throw new Error(`Command file ${relative} must "export default defineCommand({ data, execute })".`);
-    }
-    if (commands.has(value.data.name)) {
-      throw new Error(`Command file ${relative} reuses the name "/${value.data.name}", which is already taken.`);
-    }
-
-    commands.set(value.data.name, value);
-    Logger.debug(`Loaded command /${value.data.name} (${relative})`);
-  }
-
+/** Initial load at startup. Throws on an invalid command file, so a broken build won't start. */
+export async function loadCommands(): Promise<void> {
+  replaceCommands(await readCommands({ fresh: false }));
   Logger.info(`Loaded ${commands.size} command(s).`);
-  return commands;
+}
+
+/**
+ * Re-reads every command file from disk and re-syncs with Discord, without restarting.
+ *
+ * New, changed and deleted command files are all picked up. See `loadModules` for what is NOT
+ * reloaded (helpers imported by commands). The new files are fully loaded and validated before
+ * anything is swapped, so if one of them is broken, the old commands keep working.
+ */
+export async function reloadCommands(client: Client<true>): Promise<SyncResult> {
+  replaceCommands(await readCommands({ fresh: true }));
+  Logger.info(`Reloaded ${commands.size} command(s).`);
+
+  try {
+    return await syncCommands(client);
+  } catch (error) {
+    throw new Error('Commands were reloaded in the bot, but syncing them with Discord failed.', { cause: error });
+  }
 }
 
 /** Routes incoming slash command and autocomplete interactions to the matching command. */
-export function registerCommandHandler(client: Client, commands: Collection<string, Command>): void {
+export function registerCommandHandler(client: Client): void {
   client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       await runCommand(interaction, commands.get(interaction.commandName));
@@ -57,40 +77,71 @@ export function registerCommandHandler(client: Client, commands: Collection<stri
   });
 }
 
-/**
- * Sends every loaded command definition to Discord in a single request.
- *
- * This is a bulk overwrite: Discord ends up with exactly the commands in `src/app/commands`.
- * Deleted or renamed commands disappear, and definitions that haven't changed don't count
- * toward Discord's daily command-creation limit, so running this on every startup is safe.
- *
- * With `DEV_GUILD_ID` set, the commands go to that one guild and update instantly. Otherwise
- * they're registered globally. Global and guild commands are separate lists, so a guild can see
- * both copies of a command if it was registered both ways at some point.
- */
-export async function syncCommands(client: Client<true>, commands: Collection<string, Command>): Promise<void> {
-  const body = commands.map((command) => command.data.toJSON());
+export interface SyncResult {
+  global: number;
+  dev: number;
+}
 
-  try {
-    if (env.DEV_GUILD_ID) {
-      await client.application.commands.set(body, env.DEV_GUILD_ID);
-      Logger.info(`Synced ${body.length} command(s) to dev guild ${env.DEV_GUILD_ID}.`);
-    } else {
-      await client.application.commands.set(body);
-      Logger.info(`Synced ${body.length} command(s) globally.`);
-    }
-  } catch (error) {
-    // The bot still works with whatever Discord already has registered, so don't crash
-    Logger.error('Failed to sync slash commands with Discord:', error);
+/**
+ * Sends the loaded command definitions to Discord: normal commands globally, `devOnly` commands
+ * to DEV_GUILD_ID.
+ *
+ * Each call is a bulk overwrite, so Discord ends up with exactly the commands in
+ * `src/app/commands`, and deleted or renamed commands disappear. Definitions that haven't
+ * changed don't count toward Discord's daily command-creation limit, so syncing on every
+ * startup is safe.
+ */
+export async function syncCommands(client: Client<true>): Promise<SyncResult> {
+  const globalBody = commands.filter((command) => !command.devOnly).map((command) => command.data.toJSON());
+  const devBody = commands.filter((command) => command.devOnly).map((command) => command.data.toJSON());
+
+  await client.application.commands.set(globalBody);
+
+  if (env.DEV_GUILD_ID) {
+    await client.application.commands.set(devBody, env.DEV_GUILD_ID);
+  } else if (devBody.length > 0) {
+    Logger.warn(`Skipped ${devBody.length} dev-only command(s) because DEV_GUILD_ID isn't set.`);
   }
+
+  const result = { global: globalBody.length, dev: env.DEV_GUILD_ID ? devBody.length : 0 };
+  Logger.info(`Synced ${result.global} global and ${result.dev} dev-only command(s) with Discord.`);
+  return result;
+}
+
+/** Imports and validates every command file into a new collection (the live one is untouched). */
+async function readCommands(options: { fresh: boolean }): Promise<Collection<string, Command>> {
+  const loaded = new Collection<string, Command>();
+
+  for (const { file, value } of await loadModules(COMMANDS_DIR, options)) {
+    const relative = path.relative(COMMANDS_DIR, file);
+
+    if (!isCommand(value)) {
+      throw new Error(`Command file ${relative} must "export default defineCommand({ data, execute })".`);
+    }
+    if (loaded.has(value.data.name)) {
+      throw new Error(`Command file ${relative} reuses the name "/${value.data.name}", which is already taken.`);
+    }
+
+    loaded.set(value.data.name, value);
+    Logger.debug(`Loaded command /${value.data.name}${value.devOnly ? ' (dev only)' : ''} (${relative})`);
+  }
+
+  return loaded;
+}
+
+function replaceCommands(next: Collection<string, Command>): void {
+  commands.clear();
+  for (const [name, command] of next) commands.set(name, command);
 }
 
 async function runCommand(interaction: ChatInputCommandInteraction, command: Command | undefined): Promise<void> {
-  if (!command) {
-    // Happens when Discord still lists a command this build no longer has (e.g. before a sync)
-    Logger.warn(`Received unknown command /${interaction.commandName}`);
+  // An unknown command happens when Discord still lists one this build no longer has (e.g.
+  // before a sync). A dev-only command outside the dev guild shouldn't be possible, since it's
+  // only registered there, but it's refused anyway in case it was registered somewhere else before.
+  if (!command || (command.devOnly && interaction.guildId !== env.DEV_GUILD_ID)) {
+    Logger.warn(`Refused /${interaction.commandName} in guild ${interaction.guildId}: unknown or dev-only command.`);
     await interaction
-      .reply({ content: 'This command is no longer available.', flags: MessageFlags.Ephemeral })
+      .reply({ content: 'This command is not available.', flags: MessageFlags.Ephemeral })
       .catch(() => {});
     return;
   }
