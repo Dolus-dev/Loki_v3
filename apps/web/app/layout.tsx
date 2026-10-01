@@ -32,7 +32,8 @@ export default async function RootLayout({
 				<PostHogProvider>
 					<UserProvider>
 						<RootLayoutHeader />
-						<div className="">{children}</div>
+						{/* pb-20 = the fixed footer's height (h-20), so every page can scroll clear of it */}
+						<div className="pb-20">{children}</div>
 						<footer>
 							<div className="w-full h-20 bg-brand-900 dark:bg-brand-900 fixed bottom-0  flex items-center justify-center">
 								<p className="text-neutral-300 ">

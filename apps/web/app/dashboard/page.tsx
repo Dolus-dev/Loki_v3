@@ -23,8 +23,15 @@ export default function ServerSelectorDashboardPage() {
 		<>
 			{data && (
 				<section className="grid  grid-cols-2 xl:grid-cols-3 content-evenly justify-items-center place-self-center gap-x-14 relative mt-10">
-					{data
-						.sort((a, b) => a.name.localeCompare(b.name))
+					{/* Servers the bot is in (manageable/viewable) first, then ones it can be
+					    added to; alphabetical within each group. Sorts a copy, since `data`
+					    is SWR's cached array. */}
+					{[...data]
+						.sort(
+							(a, b) =>
+								Number(b.setUp) - Number(a.setUp) ||
+								a.name.localeCompare(b.name),
+						)
 						.map((guild) => {
 							return (
 								<div
@@ -53,7 +60,7 @@ export default function ServerSelectorDashboardPage() {
 												className="relative z-1 size-22 rounded-full border-2 border-neutral-200 bg-neutral-800"
 											/>
 										) : (
-											<div className="relative z-10 flex size-21 items-center  justify-center rounded-full border-2  border-neutral-400 bg-neutral-800 text-3xl font-semibold text-neutral-200 leading-none ">
+											<div className="relative z-1 flex size-21 items-center  justify-center rounded-full border-2  border-neutral-400 bg-neutral-800 text-3xl font-semibold text-neutral-200 leading-none ">
 												<span className="text-center mt-2 ">
 													{guild.name
 														.split(" ")

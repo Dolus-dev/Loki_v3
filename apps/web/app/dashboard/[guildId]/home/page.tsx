@@ -13,7 +13,7 @@ export default function DashboardHome() {
 
 	const { guildId } = useParams();
 	return (
-		<div className="w-full 2xl:max-w-[1800px] place-self-center">
+		<div className=" max-w-[85vw] ml-75 pb-4 place-self-center">
 			<section className="mt-10 flex flex-col gap-4 ">
 				<span className="text-4xl ml-6 font-semibold leading-tight text-neutral-100">
 					Welcome <span className="text-brand-600">{user?.username}</span>,

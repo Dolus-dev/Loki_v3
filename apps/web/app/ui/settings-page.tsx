@@ -30,8 +30,8 @@ export default function SettingsPage(props: SettingsPageProps) {
 	const { title, description, isLoading, loadError, children, footer } = props;
 
 	return (
-		<div className=" max-w-[85vw] ml-75 pb-24">
-			{/* pb-24 keeps the save bar clear of the root layout's fixed 80px (h-20) footer */}
+		<div className=" max-w-[85vw] ml-75 pb-4">
+			{/* The root layout already pads for the fixed footer; pb-4 is just breathing room */}
 			<section className="mt-5 flex flex-col gap-4">
 				<h1 className="text-4xl pl-15 font-semibold leading-tight text-neutral-100">
 					{title}
