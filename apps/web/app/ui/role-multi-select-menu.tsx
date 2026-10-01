@@ -18,22 +18,20 @@ interface RoleMultiSelectMenuProps {
 	onChange: (selected: string[]) => void;
 	placeholder?: string;
 	className?: string;
+	/** Read-only: shows the selection but can't be opened or changed. */
+	disabled?: boolean;
 }
 
 export default function RoleMultiSelectMenu(props: RoleMultiSelectMenuProps) {
-	const { options, value, onChange, placeholder, className } = props;
+	const { options, value, onChange, placeholder, className, disabled } = props;
 	const [isOpen, setIsOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
-	console.log(value);
-
-	const selectedRoles: ReturnedRole[] = options.filter((option) =>
-		value.includes(option.id)
-	);
-	options.sort((a, b) => b.position - a.position);
-	selectedRoles.sort((a, b) => a.position - b.position);
-
-	console.log(selectedRoles);
+	// Sort copies: `options` is usually SWR's cached array, which must not be mutated
+	const sortedOptions = [...options].sort((a, b) => b.position - a.position);
+	const selectedRoles = options
+		.filter((option) => value.includes(option.id))
+		.sort((a, b) => a.position - b.position);
 
 	const handleRemove = (idToRemove: string) => {
 		onChange(value.filter((id) => id !== idToRemove));
@@ -68,9 +66,10 @@ export default function RoleMultiSelectMenu(props: RoleMultiSelectMenuProps) {
 			<div
 				onClick={(e) => {
 					e.stopPropagation();
-					setIsOpen(!isOpen);
+					if (!disabled) setIsOpen(!isOpen);
 				}}
-				className={`bg-neutral-800 rounded-md flex flex-row p-2 min-h-[42px] cursor-pointer ${className}`}>
+				aria-disabled={disabled}
+				className={`bg-neutral-800 rounded-md flex flex-row p-2 min-h-[42px] ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} ${className}`}>
 				{/* Tag Display Area */}
 				<div className="flex flex-wrap gap-2 flex-1">
 					{selectedRoles.length === 0 && (
@@ -96,16 +95,18 @@ export default function RoleMultiSelectMenu(props: RoleMultiSelectMenuProps) {
 
 							{/* Remove Button */}
 
-							<button
-								type="button"
-								onClick={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									handleRemove(role.id);
-								}}
-								className="text-neutral-400 hover:text-neutral-200 text-sm cursor-pointer">
-								<FaX className="size-3 shrink-0" />
-							</button>
+							{!disabled && (
+								<button
+									type="button"
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										handleRemove(role.id);
+									}}
+									className="text-neutral-400 hover:text-neutral-200 text-sm cursor-pointer">
+									<FaX className="size-3 shrink-0" />
+								</button>
+							)}
 						</motion.div>
 					))}
 				</div>
@@ -121,14 +122,14 @@ export default function RoleMultiSelectMenu(props: RoleMultiSelectMenuProps) {
 			{/* Dropdown Menu */}
 
 			<AnimatePresence>
-				{isOpen && (
+				{isOpen && !disabled && (
 					<motion.div
 						initial={{ opacity: 0, scale: 0.95, y: -10 }}
 						animate={{ opacity: 1, scale: 1, y: 0 }}
 						exit={{ opacity: 0, scale: 0.95, y: -10 }}
 						transition={{ type: "spring", stiffness: 500, damping: 30 }}
 						className="absolute z-10 w-full mt-2 bg-neutral-800 rounded-md shadow-lg max-h-60 scrollbar-thin scrollbar-track-rounded-lg scrollbar-thumb-brand-800 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-brand-800/60 scrollbar-track-neutral-700 overflow-y-auto">
-						{options.map((role) => {
+						{sortedOptions.map((role) => {
 							const isSelected = value.includes(role.id);
 
 							return (

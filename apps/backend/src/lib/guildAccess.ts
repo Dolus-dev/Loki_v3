@@ -39,15 +39,54 @@ export const DashboardAccessSchema = z.object({
 });
 export type DashboardAccess = z.infer<typeof DashboardAccessSchema>;
 
-const UserGuildPermissionsSchema = z.array(
-	z.object({ id: z.string(), permissions: z.string() }),
+const UserGuildsSchema = z.array(
+	z.object({
+		id: z.string(),
+		name: z.string(),
+		icon: z.string().nullable(),
+		permissions: z.string(),
+	}),
 );
+export type UserGuild = z.infer<typeof UserGuildsSchema>[number];
+
 const MemberRolesSchema = z.object({ roles: z.array(z.string()) });
 
 /**
- * Gets the user's permissions in a guild from Discord.
+ * Gets every guild the user is in, with their permissions there, from Discord.
  * @param options.fresh Skip the cache and ask Discord, for actions where a stale answer
  * isn't acceptable (e.g. managing who has dashboard access)
+ */
+export async function getUserGuilds(
+	req: SessionRequest,
+	options: { fresh?: boolean } = {},
+): Promise<UserGuild[]> {
+	const key = `user:discord-guilds:${req.session.userId}`;
+
+	if (!options.fresh) {
+		const cached = await cacheGet(key);
+		if (cached) {
+			// Entries cached before `name`/`icon` were stored fail to parse and are refetched
+			const parsed = UserGuildsSchema.safeParse(JSON.parse(cached));
+			if (parsed.success) {
+				return parsed.data;
+			}
+		}
+	}
+
+	const fetched = await withUserAccessToken(req, fetchCurrentUserGuilds);
+	const guilds: UserGuild[] = fetched.map(({ id, name, icon, permissions }) => ({
+		id,
+		name,
+		icon: icon ?? null,
+		permissions,
+	}));
+	await cacheSet(key, JSON.stringify(guilds), DISCORD_ACCESS_CACHE_TTL_SECONDS);
+	return guilds;
+}
+
+/**
+ * Gets the user's permissions in a guild from Discord.
+ * @param options.fresh See `getUserGuilds`
  * @returns The permissions, or null if the user isn't in the guild
  */
 export async function getUserGuildPermissions(
@@ -55,25 +94,7 @@ export async function getUserGuildPermissions(
 	guildId: string,
 	options: { fresh?: boolean } = {},
 ): Promise<PermissionsBitField | null> {
-	const key = `user:discord-guilds:${req.session.userId}`;
-	let guilds: z.infer<typeof UserGuildPermissionsSchema> | null = null;
-
-	if (!options.fresh) {
-		const cached = await cacheGet(key);
-		if (cached) {
-			const parsed = UserGuildPermissionsSchema.safeParse(JSON.parse(cached));
-			if (parsed.success) {
-				guilds = parsed.data;
-			}
-		}
-	}
-
-	if (!guilds) {
-		const fetched = await withUserAccessToken(req, fetchCurrentUserGuilds);
-		guilds = fetched.map(({ id, permissions }) => ({ id, permissions }));
-		await cacheSet(key, JSON.stringify(guilds), DISCORD_ACCESS_CACHE_TTL_SECONDS);
-	}
-
+	const guilds = await getUserGuilds(req, options);
 	const guild = guilds.find((candidate) => candidate.id === guildId);
 	return guild ? new PermissionsBitField(BigInt(guild.permissions)) : null;
 }
@@ -158,6 +179,70 @@ export async function getDashboardAccess(
 		DASHBOARD_ACCESS_CACHE_TTL_SECONDS,
 	);
 	return access;
+}
+
+/**
+ * What a user may do in a guild's dashboard, from most to least:
+ * - "manage": has Manage Server (or Administrator). Everything, including changing who has
+ *   dashboard access.
+ * - "edit": holds a role with dashboard edit access. View and change settings.
+ * - "view": holds a role with dashboard view access. View settings only.
+ */
+export type GuildAccessLevel = "manage" | "edit" | "view";
+
+/**
+ * Works out the user's dashboard access level in a guild. This is the single definition of
+ * the access rules: the settings middleware, the access route and the guild list all use it.
+ * @returns The level, or null if the user may not see the guild's dashboard at all
+ */
+export async function resolveGuildAccess(
+	req: SessionRequest,
+	guildId: string,
+): Promise<GuildAccessLevel | null> {
+	const permissions = await getUserGuildPermissions(req, guildId);
+	if (!permissions) {
+		return null;
+	}
+
+	// has() also accepts Administrator, which Discord treats as every permission
+	if (permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+		return "manage";
+	}
+
+	// Without any dashboard roles configured, only Manage Server users have access, so the
+	// Discord lookup of the user's roles can be skipped
+	const dashboardAccess = await getDashboardAccess(guildId);
+	if (
+		!dashboardAccess ||
+		(dashboardAccess.editAccess.length === 0 &&
+			dashboardAccess.readAccess.length === 0)
+	) {
+		return null;
+	}
+
+	const memberRoles = await getMemberRoles(req, guildId);
+	if (!memberRoles) {
+		return null;
+	}
+
+	if (memberRoles.some((roleId) => dashboardAccess.editAccess.includes(roleId))) {
+		return "edit";
+	}
+	if (memberRoles.some((roleId) => dashboardAccess.readAccess.includes(roleId))) {
+		return "view";
+	}
+	return null;
+}
+
+/** Whether an access level allows reading ("view") or changing ("edit") settings. */
+export function accessAllows(
+	level: GuildAccessLevel | null,
+	mode: "view" | "edit",
+): boolean {
+	if (level === null) {
+		return false;
+	}
+	return mode === "view" || level === "edit" || level === "manage";
 }
 
 /**

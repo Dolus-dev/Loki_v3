@@ -38,6 +38,7 @@ interface DurationInputProps {
 	/** Accessible name for the input. */
 	label?: string;
 	className?: string;
+	disabled?: boolean;
 }
 
 /**
@@ -55,9 +56,12 @@ export default function DurationInput(props: DurationInputProps) {
 		defaultUnit = "minutes",
 		label,
 		className,
+		disabled,
 	} = props;
 
-	const [unit, setUnit] = useState<UnitName>(() => pickUnit(value, defaultUnit));
+	const [unit, setUnit] = useState<UnitName>(() =>
+		pickUnit(value, defaultUnit),
+	);
 	// The last value this component reported (or was given). A different `value` means
 	// the parent replaced it (e.g. the saved settings finished loading), so re-pick the unit.
 	const [syncedValue, setSyncedValue] = useState(value);
@@ -69,8 +73,11 @@ export default function DurationInput(props: DurationInputProps) {
 
 	// Offer only units that fit under the maximum, e.g. no "days" for a 1 hour cap
 	const units = UNITS.filter((u) => u.seconds <= max);
-	const unitSeconds =
-		(units.find((u) => u.name === unit) ?? units[0] ?? UNITS[0]).seconds;
+	const unitSeconds = (
+		units.find((u) => u.name === unit) ??
+		units[0] ??
+		UNITS[0]
+	).seconds;
 
 	const report = (seconds: number) => {
 		setSyncedValue(seconds);
@@ -98,15 +105,19 @@ export default function DurationInput(props: DurationInputProps) {
 				onChange={handleAmountChange}
 				min={Math.ceil(min / unitSeconds)}
 				max={Math.floor(max / unitSeconds)}
-				className="max-w-40"
+				disabled={disabled}
+				className="max-w-80	"
 			/>
 			<select
 				aria-label={label ? `${label} unit` : "Unit"}
 				value={unit}
 				onChange={(e) => handleUnitChange(e.target.value as UnitName)}
-				className="bg-neutral-800 text-neutral-200 rounded-md p-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-600">
+				disabled={disabled}
+				className="bg-neutral-800 text-neutral-200 rounded-md p-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:opacity-60 disabled:cursor-not-allowed">
 				{units.map((u) => (
-					<option key={u.name} value={u.name}>
+					<option
+						key={u.name}
+						value={u.name}>
 						{u.name}
 					</option>
 				))}

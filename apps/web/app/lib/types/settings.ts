@@ -75,8 +75,10 @@ export type LoggingSettings = {
 	/** null = this log is disabled */
 	logMemberLeaveChannelId: string | null;
 };
-/** `` may be omitted to leave it unchanged; every other field is required. */
-export type LoggingSettingsPatch = Omit<LoggingSettings, "guildId">;
+/** `enabled` may be omitted to leave it unchanged; every other field is required. */
+export type LoggingSettingsPatch = Omit<LoggingSettings, "guildId" | "enabled"> & {
+	enabled?: boolean;
+};
 
 export type StarboardSettings = {
 	guildId: string;

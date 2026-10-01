@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import DashboardLayoutNav from "../../components/Dashboard Layout Nav/Layout Nav";
-import { useUser } from "../../lib/hooks/useUser";
-import { redirect } from "next/navigation";
+import { GuildAccessProvider } from "../../lib/hooks/useGuildAccess";
 
 // TODO: Add dynamic metadata based on guild ID/Name
 
@@ -17,10 +16,13 @@ export default function DashboardLayout({
 }) {
 	return (
 		<div className="relative ">
-			<div className="flex flex-row relative place-self-center w-full 2xl:max-w-[1800px] overflow-hidden  ">
-				<DashboardLayoutNav />
-				<div className="bg-neutral-800/30 w-full ">{children}</div>
-			</div>
+			{/* Nothing below renders unless the user has at least view access to this guild */}
+			<GuildAccessProvider>
+				<div className="flex flex-row relative place-self-center w-full 2xl:max-w-[1800px] overflow-hidden  ">
+					<DashboardLayoutNav />
+					<div className="bg-neutral-800/30 w-full ">{children}</div>
+				</div>
+			</GuildAccessProvider>
 		</div>
 	);
 }

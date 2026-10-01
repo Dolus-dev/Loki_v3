@@ -2,7 +2,7 @@
 import { ChevronDownIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
 	FaDatabase,
@@ -51,16 +51,14 @@ export default function DashboardLayoutNav() {
 	const [isToolsOpen, setIsToolsOpen] = useState(false);
 	const [isFunOpen, setIsFunOpen] = useState(false);
 
-	const pathname = usePathname();
 	const { guildId } = useParams();
 
-	console.log(pathname.endsWith("/home"));
 	return (
 		<motion.nav
 			layout
 			layoutScroll
 			transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-			className="flex flex-col bg-neutral-800/90 w-75 shrink-0 h-[90vh] overflow-y-auto   text-neutral-200 text-sm text-nowrap">
+			className="flex flex-col bg-neutral-800/90 w-75 shrink-0 h-[100vh] fixed overflow-y-auto   text-neutral-200 text-sm text-nowrap">
 			{/* Navigation items here */}
 
 			<div className="flex flex-row gap-4 mb-4 mt-4 justify-center text-sm font-semibold">

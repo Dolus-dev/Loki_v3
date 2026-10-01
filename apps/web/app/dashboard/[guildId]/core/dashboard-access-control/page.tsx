@@ -1,145 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FaTriangleExclamation } from "react-icons/fa6";
-import MultiSelectMenu from "../../../../ui/multi-select-menu";
-import RoleMultiSelectMenu, {
-	ReturnedRole,
-} from "../../../../ui/role-multi-select-menu";
-import { useParams } from "next/navigation";
-import useSWR from "swr";
-import { API_URL, fetcher } from "../../../../lib/api";
-import { useGuildSettings } from "../../../../lib/hooks/useGuildSettings";
+import RoleMultiSelectMenu from "../../../../ui/role-multi-select-menu";
+import SaveBar from "../../../../ui/save-bar";
+import SettingsPage, { FieldError } from "../../../../ui/settings-page";
+import { useGuildAccess } from "../../../../lib/hooks/useGuildAccess";
+import { useGuildRoles } from "../../../../lib/hooks/useGuildResources";
+import { useSettingsForm } from "../../../../lib/hooks/useSettingsForm";
+
+// Changing who has dashboard access needs Manage Server itself (the backend enforces this
+// with requireManageGuild), so even dashboard "edit" roles see this page read-only
+const MANAGE_SERVER_ONLY =
+	"Only members with the Manage Server permission can change dashboard access.";
 
 export default function DashboardAccessPage() {
-	const { guildId } = useParams();
+	const { canManageAccess } = useGuildAccess();
+	const { roles } = useGuildRoles();
 
-	const {
-		data: roleOptions,
-		error: roleError,
-		isLoading: rolesLoading,
-	} = useSWR<APIRoleSimplified[]>(
-		`${API_URL}/guilds/${guildId}/roles`,
-		fetcher,
-	);
-
-	const {
-		data: accessData,
-		error: accessError,
-		isLoading: accessLoading,
-		save,
-	} = useGuildSettings("dashboard");
-
-	const [selectedEditRoles, setSelectedEditRoles] = useState<string[]>([]);
-	const [selectedViewRoles, setSelectedViewRoles] = useState<string[]>([]);
-
-	// When accessData loads, sync it into local state
-
-	useEffect(() => {
-		if (accessData && !accessLoading) {
-			console.log(accessData);
-			setSelectedEditRoles(accessData.editAccess || []);
-			setSelectedViewRoles(accessData.readAccess || []);
-			console.log("After: ", accessData.editAccess, accessData.readAccess);
-		}
-	}, [accessData]);
+	const form = useSettingsForm("dashboard", {
+		// GET and PATCH name these fields differently
+		toPatch: (data) => ({
+			rolesWithDashboardViewAccess: data.readAccess,
+			rolesWithDashboardEditAccess: data.editAccess,
+		}),
+		canSave: canManageAccess,
+		forbiddenMessage: MANAGE_SERVER_ONLY,
+	});
+	const { values, setField, fieldErrors, readOnly } = form;
 
 	return (
-		<div className="w-full exl:max-w-[1800px] max-h-[60vh]">
-			<section className="mt-10 flex flex-col gap-4">
-				<h1 className="text-4xl ml-15 font-semibold leading-tight text-neutral-100">
-					Dashboard Access
-				</h1>
-
-				<div className="bg-neutral-700/60 p-4 mx-10 rounded-lg flex flex-col gap-6 ">
-					<section className="bg-alert-700 p-4 w-fit place-self-center items-center rounded-lg flex -mt-2 flex-row top-10 ">
-						<FaTriangleExclamation className="size-6 shrink-0 mr-4 " />
-						<span>
-							Beware! Saved changes may be lost in future updates during the
-							alpha period. We apologize for any inconvenience caused.
-						</span>
-					</section>
-
-					<form className="grid xl:grid-cols-2 grid-cols-1 gap-4 ">
-						<div className="xl:col-span-2 flex flex-col gap-2">
-							<span className="text-normal ml-4 text-neutral-200 font-semibold">
-								Control who can view and edit the dashboard based on their
-								assigned roles in your server.
-							</span>
-							<span className="text-normal ml-4  text-neutral-300 font-medium">
-								Users that are granted "Manage Server" permissions have access
-								to all dashboard features automatically.
-							</span>
-						</div>
-						<div className="flex-col flex gap-2 ml-10">
-							{accessData && (
-								<>
-									{" "}
-									<label className="text-lg font-medium text-neutral-200">
-										Roles with Edit Access
-									</label>
-									<RoleMultiSelectMenu
-										options={roleOptions || []}
-										value={selectedEditRoles}
-										onChange={setSelectedEditRoles}
-										placeholder="No roles with edit access..."
-										className="max-w-130"
-									/>
-								</>
-							)}
-						</div>
-						<div className="flex-col flex gap-2 ml-10">
-							{accessData && (
-								<>
-									<label className="text-lg font-medium text-neutral-200">
-										Roles with View Access
-									</label>
-									<RoleMultiSelectMenu
-										options={roleOptions || []}
-										value={selectedViewRoles}
-										onChange={setSelectedViewRoles}
-										placeholder="No roles with view access..."
-										className="max-w-130"
-									/>
-								</>
-							)}
-						</div>
-
-						<div className="xl:col-span-2 mt-4 mb-2 mx-10 text-neutral-200">
-							<p></p>
-						</div>
-					</form>
-				</div>
-				<button
-					type="submit"
-					onClick={async (e) => {
+		<SettingsPage
+			title="Dashboard Access"
+			description={
+				<>
+					<span className="font-semibold">
+						Control who can view and edit the dashboard based on their assigned
+						roles in your server.
+					</span>
+					<span className="text-neutral-300 font-medium">
+						Users that are granted &quot;Manage Server&quot; permissions have
+						access to all dashboard features automatically.
+					</span>
+				</>
+			}
+			isLoading={form.isLoading}
+			loadError={form.loadError}
+			footer={
+				<SaveBar
+					isDirty={form.isDirty}
+					saving={form.saving}
+					status={form.status}
+					onSave={form.submit}
+					onDiscard={form.reset}
+					readOnly={readOnly}
+					readOnlyMessage={MANAGE_SERVER_ONLY}
+				/>
+			}>
+			{values && (
+				<form
+					className="grid xl:grid-cols-2 grid-cols-1 gap-4"
+					onSubmit={(e) => {
 						e.preventDefault();
-
-						const result = await save({
-							rolesWithDashboardViewAccess: [...selectedViewRoles],
-							rolesWithDashboardEditAccess: [...selectedEditRoles],
-						});
-
-						if (!result.ok) {
-							// Replace with custom toaster alert
-							alert("Failed to save changes.");
-							return;
-						}
-
-						// TODO: display custom toaster alert
-						alert("Changes saved successfully!");
-					}}
-					className="bg-info-700 text-neutral-200 font-semibold cursor-pointer py-2 rounded-md mx-10">
-					Save Changes
-				</button>
-			</section>
-		</div>
+						void form.submit();
+					}}>
+					<div className="flex-col flex gap-2 ml-10">
+						<span className="text-lg font-medium text-neutral-200">
+							Roles with Edit Access
+						</span>
+						<RoleMultiSelectMenu
+							options={roles}
+							value={values.rolesWithDashboardEditAccess}
+							onChange={(ids) => setField("rolesWithDashboardEditAccess", ids)}
+							placeholder="No roles with edit access..."
+							className="max-w-130"
+							disabled={readOnly}
+						/>
+						<FieldError message={fieldErrors.rolesWithDashboardEditAccess} />
+					</div>
+					<div className="flex-col flex gap-2 ml-10">
+						<span className="text-lg font-medium text-neutral-200">
+							Roles with View Access
+						</span>
+						<RoleMultiSelectMenu
+							options={roles}
+							value={values.rolesWithDashboardViewAccess}
+							onChange={(ids) => setField("rolesWithDashboardViewAccess", ids)}
+							placeholder="No roles with view access..."
+							className="max-w-130"
+							disabled={readOnly}
+						/>
+						<FieldError message={fieldErrors.rolesWithDashboardViewAccess} />
+					</div>
+					<FieldError message={fieldErrors._form} />
+				</form>
+			)}
+		</SettingsPage>
 	);
-}
-
-interface APIRoleSimplified {
-	name: string;
-	id: string;
-	color: number;
-	position: number;
 }

@@ -25,7 +25,7 @@ export default async function RootLayout({
 	return (
 		<html
 			lang="en"
-			className={`scroll-smooth min-w-dvw ${hanuman.className}`}
+			className={`scroll-smooth min-w-vw ${hanuman.className}`}
 			data-scroll-behavior="smooth">
 			<body
 				className={`antialiased relative  flex flex-col min-h-screen transition-colors duration-300 bg-neutral-900 text-neutral-100`}>

@@ -40,6 +40,58 @@ export type SaveResult =
 			details?: unknown;
 	  };
 
+/** A node of zod's `treeifyError` output, as the backend sends it in a 400's `details`. */
+type ErrorTree = {
+	errors?: unknown;
+	properties?: Record<string, ErrorTree>;
+	items?: (ErrorTree | null | undefined)[];
+};
+
+/** The first error message anywhere in a tree node (its own, then its fields/items). */
+function firstMessage(node: ErrorTree | null | undefined): string | undefined {
+	if (!node || typeof node !== "object") {
+		return undefined;
+	}
+	if (Array.isArray(node.errors) && typeof node.errors[0] === "string") {
+		return node.errors[0];
+	}
+	for (const child of [
+		...Object.values(node.properties ?? {}),
+		...(node.items ?? []),
+	]) {
+		const message = firstMessage(child);
+		if (message) {
+			return message;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Turns a 400 response's `details` into one message per top-level field, e.g.
+ * `{ cooldownSeconds: "Too big: expected number to be <=2147483647" }`. An error inside a
+ * list (one bad item) is reported on the list's field. Errors about the body as a whole
+ * are under `_form`.
+ */
+export function parseFieldErrors(details: unknown): Record<string, string> {
+	const result: Record<string, string> = {};
+	if (!details || typeof details !== "object") {
+		return result;
+	}
+
+	const tree = details as ErrorTree;
+	if (Array.isArray(tree.errors) && typeof tree.errors[0] === "string") {
+		result._form = tree.errors[0];
+	}
+	for (const [field, node] of Object.entries(tree.properties ?? {})) {
+		const message = firstMessage(node);
+		if (message) {
+			result[field] = message;
+		}
+	}
+	return result;
+}
+
 /**
  * PATCHes JSON to a backend path (e.g. `/guilds/123/settings/bans`) and never throws:
  * the outcome is returned so a form can show a message. Notable statuses: 400 = invalid

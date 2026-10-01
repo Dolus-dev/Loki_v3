@@ -14,6 +14,7 @@ import { router as moderationRouter } from "./moderation/index";
 import { DashboardSettings } from "../../../models/DashboardSettings";
 import { router as rolesRouter } from "./roles/index";
 import { router as channelsRouter } from "./channels/index";
+import { router as accessRouter } from "./access/index";
 import { z } from "zod";
 
 export const router = express.Router({ mergeParams: true });
@@ -40,6 +41,7 @@ router.use("/settings", settingsRouter);
 router.use("/moderation", moderationRouter);
 router.use("/roles", rolesRouter);
 router.use("/channels", channelsRouter);
+router.use("/access", accessRouter);
 
 /**
  * Returns an overview of a guild: its Discord info, dashboard settings and

@@ -10,6 +10,7 @@ interface NumberInputProps {
 	step?: number;
 	placeholder?: string;
 	className?: string;
+	disabled?: boolean;
 }
 
 export default function NumberInput(props: NumberInputProps) {
@@ -18,24 +19,10 @@ export default function NumberInput(props: NumberInputProps) {
 		onChange,
 		min = 0,
 		max,
-		step = 1,
 		placeholder,
 		className,
+		disabled,
 	} = props;
-
-	const handleIncrement = () => {
-		const newValue = value + step;
-		if (max === undefined || newValue <= max) {
-			onChange(newValue);
-		}
-	};
-
-	const handleDecrement = () => {
-		const newValue = value - step;
-		if (min === undefined || newValue >= min) {
-			onChange(newValue);
-		}
-	};
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const inputValue = e.target.value;
@@ -57,30 +44,15 @@ export default function NumberInput(props: NumberInputProps) {
 
 	return (
 		<div className={`flex items-center gap-2 ${className || ""}`}>
-			<button
-				onClick={handleDecrement}
-				type="button"
-				disabled={value <= min}
-				className="bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-200 rounded-md p-2 transition-colors">
-				<FaMinus className="size-4" />
-			</button>
-
 			<input
 				type="text"
 				inputMode="numeric"
 				value={value}
 				onChange={handleInputChange}
 				placeholder={placeholder}
-				className="bg-neutral-800 text-neutral-200 text-center rounded-md p-2  focus:outline-none focus:ring-2 focus:ring-brand-600"
+				disabled={disabled}
+				className="bg-neutral-800 text-neutral-200 text-center rounded-md p-2  focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
 			/>
-
-			<button
-				type="button"
-				onClick={handleIncrement}
-				disabled={max !== undefined && value >= max}
-				className="bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-200 rounded-md p-2 transition-colors">
-				<FaPlus className="size-4" />
-			</button>
 		</div>
 	);
 }

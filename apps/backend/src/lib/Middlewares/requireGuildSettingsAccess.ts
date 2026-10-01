@@ -1,9 +1,7 @@
-import { PermissionsBitField } from "discord.js";
 import { NextFunction, Request, Response } from "express";
 import {
-	getDashboardAccess,
-	getMemberRoles,
-	getUserGuildPermissions,
+	accessAllows,
+	resolveGuildAccess,
 	respondToAccessError,
 } from "../guildAccess";
 
@@ -14,9 +12,11 @@ type GuildSettingsAccessMode = "view" | "edit";
  *
  * Access is granted to users with Manage Server, or to members holding a role
  * configured in the guild's dashboard settings ("edit" roles also satisfy "view").
- * Requires a `guildId` route param and must run after `requireAuth`. Bot-secret
- * requests are trusted and skip the check, since the bot already acts on every guild;
- * all other requests need a session access token.
+ * The rules themselves live in `resolveGuildAccess` (lib/guildAccess.ts), shared with the
+ * guild list and the access route so they can never disagree. Requires a `guildId` route
+ * param and must run after `requireAuth`. Bot-secret requests are trusted and skip the
+ * check, since the bot already acts on every guild; all other requests need a session
+ * access token.
  *
  * The user's Discord permissions and roles are cached for a minute, and the guild's role
  * settings are cached until they change (see lib/guildAccess.ts). Routes that manage who
@@ -33,47 +33,15 @@ export function requireGuildSettingsAccess(mode: GuildSettingsAccessMode) {
 			return next();
 		}
 
-		const { guildId } = req.params;
-
 		if (!req.session.accessToken) {
 			void res.status(401).send({ error: "Unauthorized" });
 			return;
 		}
 
 		try {
-			const permissions = await getUserGuildPermissions(req, guildId);
+			const level = await resolveGuildAccess(req, req.params.guildId);
 
-			if (!permissions) {
-				void res.status(403).send({ error: "Forbidden" });
-				return;
-			}
-
-			if (permissions.has(PermissionsBitField.Flags.ManageGuild)) {
-				return next();
-			}
-
-			const dashboardAccess = await getDashboardAccess(guildId);
-
-			if (!dashboardAccess) {
-				void res.status(403).send({ error: "Forbidden" });
-				return;
-			}
-
-			const memberRoles = await getMemberRoles(req, guildId);
-
-			if (!memberRoles) {
-				void res.status(403).send({ error: "Forbidden" });
-				return;
-			}
-
-			const allowedRoles =
-				mode === "edit"
-					? dashboardAccess.editAccess
-					: [...dashboardAccess.readAccess, ...dashboardAccess.editAccess];
-
-			const hasAccess = memberRoles.some((roleId) => allowedRoles.includes(roleId));
-
-			if (!hasAccess) {
+			if (!accessAllows(level, mode)) {
 				void res.status(403).send({ error: "Forbidden" });
 				return;
 			}

@@ -4,19 +4,20 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { FaChevronDown, FaRegCheckSquare } from "react-icons/fa";
 import { FaHashtag, FaX } from "react-icons/fa6";
-import { ChannelType, Snowflake } from "discord-api-types/v10";
+import { ChannelType } from "discord-api-types/v10";
 import { MdKeyboardVoice, MdOutlineForum } from "react-icons/md";
 
 import { MegaphoneIcon } from "@heroicons/react/24/solid";
 import { GiTheaterCurtains } from "react-icons/gi";
 
-interface ReturnedChannel {
+export interface ReturnedChannel {
 	id: string;
 	name: string;
 	type?: ChannelType;
 }
 
-interface ReturnedChannelGroup {
+/** One category and its channels, as returned by GET /guilds/:guildId/channels. */
+export interface ReturnedChannelGroup {
 	category: string;
 	children: ReturnedChannel[];
 }
@@ -27,6 +28,15 @@ interface ChannelMultiSelectMenuProps {
 	onChange: (selected: string[]) => void;
 	placeholder?: string;
 	className?: string;
+	/** Read-only: shows the selection but can't be opened or changed. */
+	disabled?: boolean;
+	/**
+	 * Channel IDs to leave out of the dropdown. Only for lists that contradict each other,
+	 * where one channel in both makes no sense and the backend rejects it (e.g. a command's
+	 * whitelist and blacklist). Don't use it between unrelated settings: users may pick the
+	 * same channel for several features.
+	 */
+	exclude?: string[];
 }
 
 const getChannelIcon = (type?: ChannelType) => {
@@ -52,11 +62,30 @@ const getChannelIcon = (type?: ChannelType) => {
 export default function ChannelMultiSelectMenu(
 	props: ChannelMultiSelectMenuProps
 ) {
-	const { options, value, onChange, placeholder, className } = props;
+	const {
+		options,
+		value,
+		onChange,
+		placeholder,
+		className,
+		disabled,
+		exclude = [],
+	} = props;
 
 	const [isOpen, setIsOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
-	const selectedChannels: ReturnedChannel[] = [];
+	const selectedChannels = options
+		.flatMap((group) => group.children)
+		.filter((channel) => value.includes(channel.id));
+	// Channels already selected here stay listed even if excluded, so they can be unticked
+	const shownOptions = options
+		.map((group) => ({
+			...group,
+			children: group.children.filter(
+				(channel) => !exclude.includes(channel.id) || value.includes(channel.id),
+			),
+		}))
+		.filter((group) => group.children.length > 0);
 
 	const handleRemove = (idToRemove: string) => {
 		onChange(value.filter((id) => id !== idToRemove));
@@ -94,9 +123,10 @@ export default function ChannelMultiSelectMenu(
 			<div
 				onClick={(e) => {
 					e.stopPropagation();
-					setIsOpen(!isOpen);
+					if (!disabled) setIsOpen(!isOpen);
 				}}
-				className={`bg-neutral-800 rounded-md flex flex-row p-2 min-h-[42px] cursor-pointer ${className || ""} `}>
+				aria-disabled={disabled}
+				className={`bg-neutral-800 rounded-md flex flex-row p-2 min-h-[42px] ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"} ${className || ""} `}>
 				{/* Tag Display Area */}
 				<div className="flex flex-wrap gap-2 flex-1">
 					{selectedChannels.length === 0 && (
@@ -110,19 +140,22 @@ export default function ChannelMultiSelectMenu(
 							initial={{ opacity: 0, scale: 0.8 }}
 							animate={{ opacity: 1, scale: 1 }}
 							exit={{ opacity: 0, scale: 0.8 }}
-							className="bg-neutral-700/60 rounded-py relative flex items-center gap-2 px-2">
-							<span>{channel.name}</span>
+							className="bg-neutral-700/60 rounded-md py-1 relative flex items-center gap-2 px-2">
+							{getChannelIcon(channel.type)}
+							<span className="text-neutral-200 text-sm">{channel.name}</span>
 
-							<button
-								type="button"
-								onClick={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									handleRemove(channel.id);
-								}}
-								className="text-neutral-400 hover:text-neutral-200 text-sm cursor-pointer">
-								<FaX className="size-3 shrink-0" />
-							</button>
+							{!disabled && (
+								<button
+									type="button"
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										handleRemove(channel.id);
+									}}
+									className="text-neutral-400 hover:text-neutral-200 text-sm cursor-pointer">
+									<FaX className="size-3 shrink-0" />
+								</button>
+							)}
 						</motion.div>
 					))}
 				</div>
@@ -138,15 +171,16 @@ export default function ChannelMultiSelectMenu(
 			{/* Dropdown Menu */}
 
 			<AnimatePresence>
-				{isOpen && (
+				{isOpen && !disabled && (
 					<motion.div
 						initial={{ opacity: 0, scale: 0.95, y: -10 }}
 						animate={{ opacity: 1, scale: 1, y: 0 }}
 						exit={{ opacity: 0, scale: 0.95, y: -10 }}
 						transition={{ type: "spring", stiffness: 500, damping: 30 }}
 						className="absolute z-10 w-full mt-2 bg-neutral-800 rounded-md shadow-lg max-h-60 scrollbar-thin scrollbar-track-rounded-lg scrollbar-thumb-brand-800 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-brand-800/60 scrollbar-track-neutral-700 overflow-y-auto">
-						{options.map((group) => (
-							<div key={group.category}>
+						{/* Keyed by position too: two categories can share a name */}
+						{shownOptions.map((group, index) => (
+							<div key={`${index}-${group.category}`}>
 								<div className="w-full px-4 py-2 items-center text-left">
 									{group.category}
 								</div>
