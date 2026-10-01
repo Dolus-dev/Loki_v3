@@ -1,10 +1,19 @@
 import express from "express";
-import { requireAuth } from "../../../lib/Middlewares/requireAuth";
 import { env } from "../../../config/env";
 
 export const router = express.Router();
 
-router.get("/", requireAuth, async (req, res) => {
+/**
+ * Logs the current browser out: destroys its session and clears the session cookie.
+ *
+ * POST rather than GET, since it changes state. It deliberately doesn't require a login,
+ * so logging out is always safe to call: with no (or an already expired) session it just
+ * clears the cookie and succeeds.
+ *
+ * Only this session ends. The user's stored Discord tokens stay in the database because
+ * their other sessions (other browsers/devices) still use them.
+ */
+router.post("/", async (req, res) => {
 	try {
 		await new Promise<void>((resolve, reject) => {
 			req.session.destroy((err) => {
@@ -21,7 +30,7 @@ router.get("/", requireAuth, async (req, res) => {
 			sameSite: "strict",
 		});
 
-		return res.status(200).send({ message: "Logged out successfully" });
+		return res.status(204).send();
 	} catch (err) {
 		console.error("Error during logout:", err);
 		return res.status(500).send({ error: "Failed to log out" });

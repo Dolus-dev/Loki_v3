@@ -21,8 +21,10 @@ const MotionLink = motion.create(Link);
 export default function RootLayoutHeader() {
 	const { user, isLoading } = useUser();
 	const loginRef = `${API_URL}/auth/login`;
-	const logoutRef = `${API_URL}/auth/logout`;
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+	const [logoutState, setLogoutState] = useState<"idle" | "pending" | "failed">(
+		"idle",
+	);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const navRef = useRef<HTMLDivElement>(null);
 	const [activeNavItem, setActiveNavItem] = useState<string>("/");
@@ -30,6 +32,29 @@ export default function RootLayoutHeader() {
 	const [underlineWidth, setUnderlineWidth] = useState(0);
 
 	const pathname = usePathname();
+
+	/**
+	 * Ends the session on the backend, then reloads the site from the home page. A full page
+	 * load (rather than router.push) also throws away everything cached in memory for this
+	 * user, like their server list and settings, so none of it lingers after logout.
+	 */
+	const handleLogout = async () => {
+		setLogoutState("pending");
+		try {
+			const res = await fetch(`${API_URL}/auth/logout`, {
+				method: "POST",
+				credentials: "include",
+			});
+			if (!res.ok) {
+				throw new Error(`Logout failed with status ${res.status}`);
+			}
+		} catch (error) {
+			console.error(error);
+			setLogoutState("failed");
+			return;
+		}
+		window.location.assign("/");
+	};
 
 	useEffect(() => {
 		setActiveNavItem(pathname);
@@ -248,15 +273,25 @@ export default function RootLayoutHeader() {
 										Changelogs
 									</motion.a>
 									<motion.button
-										className="cursor-pointer  text-left pl-2 py-1 "
+										type="button"
+										onClick={handleLogout}
+										disabled={logoutState === "pending"}
+										className="cursor-pointer  text-left pl-2 py-1 disabled:cursor-wait disabled:opacity-60"
 										whileHover={{
 											scale: 1.01,
 											transition: { duration: 0.2 },
 											backgroundColor: "var(--hover-bg)",
 										}}
 										transition={{ duration: 0.2 }}>
-										Logout
+										{logoutState === "pending" ? "Logging out..." : "Logout"}
 									</motion.button>
+									{logoutState === "failed" && (
+										<span
+											role="alert"
+											className="pl-2 pb-2 text-sm text-danger-400">
+											Couldn&apos;t log out. Try again.
+										</span>
+									)}
 								</motion.div>
 							)}
 						</AnimatePresence>
