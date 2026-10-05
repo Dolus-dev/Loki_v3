@@ -26,7 +26,7 @@ export default function RootLayoutHeader() {
 		"idle",
 	);
 	const dropdownRef = useRef<HTMLDivElement>(null);
-	const navRef = useRef<HTMLDivElement>(null);
+	const navRef = useRef<HTMLElement>(null);
 	const [activeNavItem, setActiveNavItem] = useState<string>("/");
 	const [underlineLeft, setUnderlineLeft] = useState(0);
 	const [underlineWidth, setUnderlineWidth] = useState(0);
@@ -108,10 +108,12 @@ export default function RootLayoutHeader() {
 				</Link>
 
 				{!pathname.startsWith("/dashboard") && (
-					<motion.nav
-						layout
+					<nav
 						className="flex flex-row gap-6 relative text-lg font-medium"
 						ref={navRef}>
+						{/* A plain <nav>, deliberately without Framer's `layout`: in this sticky header
+						    it measured the nav against the page, so after scrolling down and changing
+						    pages (which scrolls back to the top) it animated the links up from mid-screen */}
 						<MotionLink
 							href="/"
 							id="/"
@@ -196,7 +198,7 @@ export default function RootLayoutHeader() {
 								animate={{ left: underlineLeft, width: underlineWidth }}
 								transition={{ type: "spring", stiffness: 400, damping: 30 }}
 							/> */}
-					</motion.nav>
+					</nav>
 				)}
 
 				{isLoading && <p>Loading...</p>}
