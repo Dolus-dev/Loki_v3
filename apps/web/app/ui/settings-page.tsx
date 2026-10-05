@@ -6,6 +6,8 @@ import { ApiError } from "../lib/api";
 
 interface SettingsPageProps {
 	title: string;
+	/** Optional navigation shown between the title and the card, e.g. a `TabNav`. */
+	tabs?: ReactNode;
 	/** Intro text shown at the top of the card. */
 	description: ReactNode;
 	isLoading: boolean;
@@ -27,7 +29,8 @@ function loadErrorMessage(error: unknown): string {
 
 /** The shared layout of a dashboard settings page: title, alpha notice, form card, footer. */
 export default function SettingsPage(props: SettingsPageProps) {
-	const { title, description, isLoading, loadError, children, footer } = props;
+	const { title, tabs, description, isLoading, loadError, children, footer } =
+		props;
 
 	return (
 		<div className=" max-w-[85vw] ml-75 pb-4">
@@ -36,6 +39,8 @@ export default function SettingsPage(props: SettingsPageProps) {
 				<h1 className="text-4xl pl-15 font-semibold leading-tight text-neutral-100">
 					{title}
 				</h1>
+
+				{tabs && <div className="mx-10">{tabs}</div>}
 
 				<div className="bg-neutral-700/60 p-4 mx-10 rounded-lg flex flex-col gap-6">
 					<section className="bg-alert-700 p-4 w-fit place-self-center items-center rounded-lg flex -mt-2 flex-row">

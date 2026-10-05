@@ -202,10 +202,12 @@ export default function DashboardLayoutNav() {
 						style={{ willChange: "height, opacity", transformOrigin: "top" }}
 						aria-expanded={isModerationOpen}>
 						<div className="flex flex-col  bg-neutral-900/30">
-							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed  hover:bg-neutral-600/30 transition duration-300">
+							<Link
+								className="flex flex-row gap-4 py-2 items-center cursor-pointer  hover:bg-neutral-600/30 transition duration-300"
+								href={`/dashboard/${guildId}/moderation/`}>
 								<FaHammer className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Moderation</span>
-							</div>
+							</Link>
 							<div className="flex flex-row gap-4 py-2 items-center cursor-not-allowed hover:bg-neutral-600/30 transition duration-300">
 								<FaRobot className="size-5 shrink-0 ml-9 pb-0.5" />
 								<span>Basic Automod</span>

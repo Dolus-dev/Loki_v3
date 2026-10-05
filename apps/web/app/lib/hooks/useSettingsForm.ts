@@ -9,6 +9,7 @@ import type {
 } from "../types/settings";
 import { useGuildAccess } from "./useGuildAccess";
 import { useGuildSettings } from "./useGuildSettings";
+import { useUnsavedChangesWarning } from "./useUnsavedChangesWarning";
 
 export type SaveStatus =
 	| { kind: "idle" }
@@ -38,6 +39,9 @@ interface SettingsFormOptions<S extends SettingsSection> {
  *   when nothing is being edited, and never overwrites edits in progress;
  * - saving or discarding just drops the edits, and the form shows the saved settings.
  *
+ * While there are unsaved edits, leaving the page asks for confirmation first (see
+ * `useUnsavedChangesWarning`).
+ *
  * `resetKey` changes whenever the edits are dropped. Inputs that keep their own text
  * state (like a comma-separated list) can use it as a React `key` to start over.
  */
@@ -60,6 +64,9 @@ export function useSettingsForm<S extends SettingsSection>(
 	const isDirty =
 		edits !== null && JSON.stringify(edits) !== JSON.stringify(saved);
 	const readOnly = !canSave;
+
+	// Ask before navigating away (or closing the tab) with unsaved edits
+	useUnsavedChangesWarning(isDirty);
 
 	/** Changes one field. Ignored while loading or read-only. */
 	const setField = <K extends keyof SettingsPatch[S]>(
