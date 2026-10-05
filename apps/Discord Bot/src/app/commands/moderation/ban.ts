@@ -17,7 +17,15 @@ import {
   getModerationActionSettings,
   type ModerationActionSettings,
 } from '../../lib/backend.js';
-import { discordTimestamp, formatDuration, parseDuration } from '../../lib/duration.js';
+import {
+  discordTimestamp,
+  durationChoices,
+  formatDuration,
+  parseDuration,
+  SECONDS_PER,
+  type DurationChoice,
+  type DurationRules,
+} from '../../lib/duration.js';
 import { sendModerationNotice } from '../../lib/moderationNotices.js';
 
 // The backend stores reasons up to 512 characters, and Discord's audit log has the same limit
@@ -28,6 +36,38 @@ interface BanSettings extends ModerationActionSettings {
   /** Used when /ban is run without a duration. 0 = permanent. */
   defaultBanDurationSeconds: number;
 }
+
+/** The `duration` option: how long the ban lasts. 0 ("permanent") lasts until someone unbans. */
+const BAN_DURATION_RULES: DurationRules = {
+  zeroWords: ['permanent', 'perm', 'forever', 'never', 'indefinite'],
+  maxSeconds: 10 * SECONDS_PER.year,
+  tooLongMessage: 'That ban is longer than 10 years. Use `permanent` instead.',
+};
+const BAN_DURATION_PRESETS: DurationChoice[] = [
+  { name: '1 hour', value: '1h' },
+  { name: '1 day', value: '1d' },
+  { name: '3 days', value: '3d' },
+  { name: '1 week', value: '1w' },
+  { name: '2 weeks', value: '2w' },
+  { name: '1 month', value: '1mo' },
+  { name: 'Permanent', value: 'permanent' },
+];
+
+/** The `delete_messages` option: how far back to delete the user's messages. Discord's max is 7 days. */
+const DELETE_MESSAGES_RULES: DurationRules = {
+  zeroWords: ['none', 'no', 'nothing', "don't", 'dont'],
+  maxSeconds: 7 * SECONDS_PER.day,
+  tooLongMessage: 'Discord can only delete up to 7 days of messages. Use `7d` or less.',
+};
+const DELETE_MESSAGES_PRESETS: DurationChoice[] = [
+  { name: "Don't delete any", value: 'none' },
+  { name: 'Last hour', value: '1h' },
+  { name: 'Last 6 hours', value: '6h' },
+  { name: 'Last 12 hours', value: '12h' },
+  { name: 'Last 24 hours', value: '24h' },
+  { name: 'Last 3 days', value: '3d' },
+  { name: 'Last 7 days', value: '7d' },
+];
 
 /**
  * /ban: bans a user (whether or not they're in the server) and records it in their moderation
@@ -68,28 +108,23 @@ export default defineCommand({
         .setMaxLength(MAX_REASON_LENGTH)
         .setRequired(false),
     )
+    // Free text (see lib/duration.ts for what's accepted), with autocomplete that previews how
+    // the typed duration is understood and suggests common ones
     .addStringOption((option) =>
       option
         .setName('duration')
-        .setDescription('How long, e.g. 12h, 7d, 1w or "permanent". Defaults to the server\'s default ban duration.')
-        .setMaxLength(32)
+        .setDescription('How long, e.g. "12 hours", "7d", "1 week" or "permanent". Defaults to the server setting.')
+        .setMaxLength(64)
+        .setAutocomplete(true)
         .setRequired(false),
     )
-    .addIntegerOption((option) =>
+    .addStringOption((option) =>
       option
         .setName('delete_messages')
-        .setDescription("Delete the user's messages from this far back. Defaults to none.")
-        .setRequired(false)
-        // Discord can delete at most 7 days of messages
-        .addChoices(
-          { name: "Don't delete any", value: 0 },
-          { name: 'Last hour', value: 60 * 60 },
-          { name: 'Last 6 hours', value: 6 * 60 * 60 },
-          { name: 'Last 12 hours', value: 12 * 60 * 60 },
-          { name: 'Last 24 hours', value: 24 * 60 * 60 },
-          { name: 'Last 3 days', value: 3 * 24 * 60 * 60 },
-          { name: 'Last 7 days', value: 7 * 24 * 60 * 60 },
-        ),
+        .setDescription('Delete their messages from this far back, e.g. "6 hours" or "3d" (max 7 days). Default: none.')
+        .setMaxLength(64)
+        .setAutocomplete(true)
+        .setRequired(false),
     )
     .addAttachmentOption((option) =>
       option
@@ -114,7 +149,7 @@ export default defineCommand({
     const member = interaction.options.getMember('user');
     const reason = interaction.options.getString('reason')?.trim() || undefined;
     const durationInput = interaction.options.getString('duration')?.trim() || undefined;
-    const deleteMessageSeconds = interaction.options.getInteger('delete_messages') ?? 0;
+    const deleteMessagesInput = interaction.options.getString('delete_messages')?.trim() || undefined;
     const evidence = interaction.options.getAttachment('evidence') ?? undefined;
 
     // 1. Server settings
@@ -148,12 +183,23 @@ export default defineCommand({
     // 2. Duration: the moderator's, else the server default. 0 = permanent.
     let durationSeconds = settings.defaultBanDurationSeconds;
     if (durationInput) {
-      const parsed = parseDuration(durationInput);
+      const parsed = parseDuration(durationInput, BAN_DURATION_RULES);
       if (!parsed.ok) {
         await interaction.editReply(parsed.error);
         return;
       }
       durationSeconds = parsed.seconds;
+    }
+
+    // How far back to delete their messages; 0 = none (the default)
+    let deleteMessageSeconds = 0;
+    if (deleteMessagesInput) {
+      const parsed = parseDuration(deleteMessagesInput, DELETE_MESSAGES_RULES);
+      if (!parsed.ok) {
+        await interaction.editReply(`Delete messages: ${parsed.error}`);
+        return;
+      }
+      deleteMessageSeconds = parsed.seconds;
     }
     const expiresAt = durationSeconds > 0 ? new Date(Date.now() + durationSeconds * 1000) : null;
     const durationText = expiresAt
@@ -232,6 +278,18 @@ export default defineCommand({
       `${moderator.id} banned ${user.id} from guild ${guild.id} (${expiresAt ? `until ${expiresAt.toISOString()}` : 'permanent'}).`,
     );
     await interaction.editReply({ content: bannedMessage, allowedMentions: { parse: [] } });
+  },
+
+  // Suggestions while typing `duration` or `delete_messages`: a preview of how the typed text
+  // is understood (or why it isn't), then matching presets. Moderators can still submit
+  // anything they type; execute() validates it again.
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    const choices =
+      focused.name === 'delete_messages'
+        ? durationChoices(focused.value, DELETE_MESSAGES_RULES, DELETE_MESSAGES_PRESETS, "don't delete any")
+        : durationChoices(focused.value, BAN_DURATION_RULES, BAN_DURATION_PRESETS, 'permanent');
+    await interaction.respond(choices);
   },
 });
 
