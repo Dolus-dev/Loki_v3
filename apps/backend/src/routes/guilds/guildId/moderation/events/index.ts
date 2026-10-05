@@ -174,7 +174,9 @@ router.get(
 			return res.status(400).send({ error: "Invalid userId format" });
 		}
 
-		const filters = await fetchModerationEventsFilters.safeParseAsync(req.query);
+		const filters = await fetchModerationEventsFilters.safeParseAsync(
+			req.query,
+		);
 
 		if (!filters.success) {
 			return res.status(400).send(z.treeifyError(filters.error));
@@ -192,7 +194,9 @@ router.get(
 			return res.status(404).send({ error: "Guild not found" });
 		}
 
-		const pagination = await GetUserModerationEventsQuery.safeParseAsync(req.query);
+		const pagination = await GetUserModerationEventsQuery.safeParseAsync(
+			req.query,
+		);
 
 		if (!pagination.success) {
 			return res.status(400).send({
@@ -255,7 +259,7 @@ router.get(
 		} else if (issuedAfter) {
 			queryBuilder.andWhere("event.createdAt >= :after", {
 				after: issuedAfter,
-		});
+			});
 		}
 
 		if (cursorId !== undefined) {
@@ -303,13 +307,19 @@ const createModerationEvent = z.object({
 	// Evidence the moderator attached when using the command: a link to it, and/or the ID
 	// of the Discord message that contains it. Only http(s) links are accepted, so the
 	// dashboard can safely show the URL as a link.
-	evidenceUrl: z.httpUrl().max(2048, "Evidence URL cannot exceed 2048 characters").optional(),
+	evidenceUrl: z
+		.httpUrl()
+		.max(2048, "Evidence URL cannot exceed 2048 characters")
+		.optional(),
 	evidenceMessageId: discordSnowflake.optional(),
 
 	// When a temporary action (ban, mute, timeout, ...) ends. Omit it for a permanent one.
 	// An ISO 8601 date-time with a timezone, e.g. "2030-01-01T12:00:00Z", in the future.
 	expiresAt: z.iso
-		.datetime({ offset: true, message: "expiresAt must be an ISO 8601 date-time with a timezone" })
+		.datetime({
+			offset: true,
+			message: "expiresAt must be an ISO 8601 date-time with a timezone",
+		})
 		.transform((value) => new Date(value))
 		.refine((date) => date.getTime() > Date.now(), {
 			message: "expiresAt must be in the future",
@@ -443,9 +453,12 @@ router.post(
 				return supersededEvents;
 			});
 
-			console.log(
-				`Moderation event created: ${newEvent.id} against user ${userId}`,
-			);
+			console.log("Moderation event created:", {
+				id: newEvent.id,
+				userId: targetUser.id,
+				issuedBy: issuingUser.id,
+				guildId: guild.id,
+			});
 
 			return res.status(201).send({
 				message: "Moderation event created",
@@ -458,6 +471,118 @@ router.post(
 			return res
 				.status(500)
 				.send({ error: "Failed to create moderation event" });
+		}
+	},
+);
+
+const endActiveModerationEvent = z.object({
+	// Only lasting actions can be ended early
+	eventType: z.enum(["ban", "mute", "timeout"]),
+	// Why it was ended early; recorded in the audit log
+	reason: z
+		.string()
+		.trim()
+		.max(512, "Reason cannot exceed 512 characters")
+		.optional(),
+	// Required for the bot; ignored for dashboard users (see resolveActorId)
+	endedBy: discordSnowflake.optional(),
+});
+
+/**
+ * Ends a user's active ban, mute or timeout before it expires, e.g. after `/unban`.
+ *
+ * The event is marked "ended" (and stops being active), and the audit log records who
+ * ended it and why. Answers 404 when the user has no active event of that type, e.g.
+ * because they were banned outside Loki, which callers can treat as "nothing to end".
+ */
+router.post(
+	"/:userId/end",
+	requireGuildSettingsAccess("edit"),
+	async (req: express.Request<{ userId: string; guildId: string }>, res) => {
+		const { userId, guildId } = req.params;
+
+		if (!discordSnowflake.safeParse(userId).success) {
+			return res.status(400).send({ error: "Invalid userId format" });
+		}
+		const parseResult = endActiveModerationEvent.safeParse(req.body);
+		if (!parseResult.success) {
+			return res.status(400).send({
+				error: "Invalid request body",
+				details: z.treeifyError(parseResult.error),
+			});
+		}
+		const { eventType, reason } = parseResult.data;
+
+		const endedBy = resolveActorId(
+			res,
+			req.session.userId,
+			parseResult.data.endedBy,
+		);
+		if (!endedBy) {
+			return res.status(400).send({ error: "endedBy is required" });
+		}
+
+		try {
+			const endedEventId = await AppDataSource.transaction(async (manager) => {
+				// The same lock `supersedeActiveEvents` takes, so this can't race with a new
+				// event of this type being created for the user at the same moment
+				await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+					`moderation-event:${guildId}:${userId}:${eventType}`,
+				]);
+
+				const result = await manager
+					.createQueryBuilder()
+					.update(ModerationEvents)
+					// The database's own clock, like the other lifecycle changes
+					.set({ status: "ended", endedAt: () => "now()" })
+					.where(
+						`"guildId" = :guildId AND "issuedToId" = :userId AND "eventType" = :eventType AND "status" = 'active'`,
+						{ guildId, userId, eventType },
+					)
+					.returning(["id"])
+					.execute();
+
+				const ended = (result.raw as { id: number }[])[0];
+				if (!ended) {
+					return null;
+				}
+
+				// The audit log needs the actor to exist as a user
+				await manager
+					.getRepository(User)
+					.upsert(
+						{ id: endedBy },
+						{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
+					);
+
+				await createAuditLogEntry(
+					{
+						action:
+							AuditAction.MODERATION_EVENT.LIFT[
+								eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.LIFT
+							],
+						userId: endedBy,
+						targetUserId: userId,
+						guildId,
+						details: `The ${eventType} event #${ended.id} was ended early. Reason: ${reason || "No reason provided"}`,
+					},
+					manager,
+				);
+
+				return ended.id;
+			});
+
+			if (endedEventId === null) {
+				return res
+					.status(404)
+					.send({ error: `The user has no active ${eventType}` });
+			}
+			return res.status(200).send({ endedEventId });
+		} catch (error) {
+			console.error("Error ending moderation event:", error);
+			return res
+				.status(500)
+				.send({ error: "Failed to end the moderation event" });
 		}
 	},
 );
@@ -636,93 +761,95 @@ router.delete(
 	"/:eventId",
 	requireGuildSettingsAccess("edit"),
 	async (req: express.Request<{ eventId: string; guildId: string }>, res) => {
-	const { eventId, guildId } = req.params;
+		const { eventId, guildId } = req.params;
 
-	if (!discordSnowflake.safeParse(guildId).success) {
-		return res.status(400).send({ error: "Invalid guildId format" });
-	}
+		if (!discordSnowflake.safeParse(guildId).success) {
+			return res.status(400).send({ error: "Invalid guildId format" });
+		}
 
-	const eventRowId = parseRowId(eventId);
-	if (eventRowId === null) {
-		return res.status(400).send({ error: "Invalid eventId format" });
-	}
+		const eventRowId = parseRowId(eventId);
+		if (eventRowId === null) {
+			return res.status(400).send({ error: "Invalid eventId format" });
+		}
 
-	const eventRepository = AppDataSource.getRepository(ModerationEvents);
+		const eventRepository = AppDataSource.getRepository(ModerationEvents);
 
-	const userRepository = AppDataSource.getRepository(User);
+		const userRepository = AppDataSource.getRepository(User);
 
-	// DELETE requests may have no body, so default to an empty object
-	const parseResult = deleteModerationEvent.safeParse(req.body ?? {});
+		// DELETE requests may have no body, so default to an empty object
+		const parseResult = deleteModerationEvent.safeParse(req.body ?? {});
 
-	if (!parseResult.success) {
-		return res.status(400).send(z.treeifyError(parseResult.error));
-	}
+		if (!parseResult.success) {
+			return res.status(400).send(z.treeifyError(parseResult.error));
+		}
 
-	const userId = resolveActorId(
-		res,
-		req.session.userId,
-		parseResult.data.userId,
-	);
-	if (!userId) {
-		return res.status(400).send({ error: "userId is required" });
-	}
+		const userId = resolveActorId(
+			res,
+			req.session.userId,
+			parseResult.data.userId,
+		);
+		if (!userId) {
+			return res.status(400).send({ error: "userId is required" });
+		}
 
-	const [deletingUser, eventToDelete] = await Promise.all([
-		userRepository
-			.upsert(
-				{ id: userId },
-				{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
-			)
-			.then(() => userRepository.findOneBy({ id: userId })),
-		// Scoped to the URL's guild so one guild can't delete another's events.
-		// Relations are needed for the audit log entry below.
-		eventRepository.findOne({
-			where: { id: eventRowId, guild: { id: guildId } },
-			relations: ["guild", "issuedTo"],
-		}),
-	]);
+		const [deletingUser, eventToDelete] = await Promise.all([
+			userRepository
+				.upsert(
+					{ id: userId },
+					{ conflictPaths: ["id"], skipUpdateIfNoValuesChanged: true },
+				)
+				.then(() => userRepository.findOneBy({ id: userId })),
+			// Scoped to the URL's guild so one guild can't delete another's events.
+			// Relations are needed for the audit log entry below.
+			eventRepository.findOne({
+				where: { id: eventRowId, guild: { id: guildId } },
+				relations: ["guild", "issuedTo"],
+			}),
+		]);
 
-	if (!eventToDelete) {
-		return res.status(404).send({ error: "Moderation event not found" });
-	}
+		if (!eventToDelete) {
+			return res.status(404).send({ error: "Moderation event not found" });
+		}
 
-	if (!deletingUser) {
-		return res
-			.status(500)
-			.send({ error: "Failed to create/fetch deleting user" });
-	}
+		if (!deletingUser) {
+			return res
+				.status(500)
+				.send({ error: "Failed to create/fetch deleting user" });
+		}
 
-	// Capture what the audit log needs first; TypeORM clears `id` on removed entities
-	const { eventType, issuedTo, guild } = eventToDelete;
+		// Capture what the audit log needs first; TypeORM clears `id` on removed entities
+		const { eventType, issuedTo, guild } = eventToDelete;
 
-	try {
-		// The deletion and its audit entry are saved together: if one fails, neither is kept
-		await AppDataSource.transaction(async (manager) => {
-			await manager.getRepository(ModerationEvents).remove(eventToDelete);
+		try {
+			// The deletion and its audit entry are saved together: if one fails, neither is kept
+			await AppDataSource.transaction(async (manager) => {
+				await manager.getRepository(ModerationEvents).remove(eventToDelete);
 
-			await createAuditLogEntry(
-				{
-					action:
-						AuditAction.MODERATION_EVENT.DELETE[
-							eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.DELETE
-						],
-					userId: deletingUser.id,
-					targetUserId: issuedTo.id,
-					guildId: guild.id,
-					details: `Deleted ${eventType} moderation event with ID ${eventId}`,
-				},
-				manager,
-			);
-		});
+				await createAuditLogEntry(
+					{
+						action:
+							AuditAction.MODERATION_EVENT.DELETE[
+								eventType.toUpperCase() as keyof typeof AuditAction.MODERATION_EVENT.DELETE
+							],
+						userId: deletingUser.id,
+						targetUserId: issuedTo.id,
+						guildId: guild.id,
+						details: `Deleted ${eventType} moderation event with ID ${eventId}`,
+					},
+					manager,
+				);
+			});
 
-		console.log(`Moderation event deleted: ${eventId}`);
+			console.log(`Moderation event deleted: ${eventId}`);
 
-		return res
-			.status(200)
-			.send({ eventId, message: "Event deleted successfully" });
-	} catch (error) {
-		console.error("Error deleting moderation event:", error);
-		return res.status(500).send({ error: "Failed to delete moderation event" });
-	}
+			return res
+				.status(200)
+				.send({ eventId, message: "Event deleted successfully" });
+		} catch (error) {
+			console.error("Error deleting moderation event:", error);
+			return res
+				.status(500)
+				.send({ error: "Failed to delete moderation event" });
+		}
 	},
 );

@@ -29,6 +29,12 @@ export const AuditAction = {
 			ENDED: "MODERATION_EVENT_EXPIRE_ENDED",
 			FAILED: "MODERATION_EVENT_EXPIRE_FAILED",
 		},
+		// A moderator ended an active ban, mute or timeout before it expired (e.g. /unban)
+		LIFT: {
+			BAN: "MODERATION_EVENT_LIFT_BAN",
+			MUTE: "MODERATION_EVENT_LIFT_MUTE",
+			TIMEOUT: "MODERATION_EVENT_LIFT_TIMEOUT",
+		},
 		// Attaching, changing or removing the evidence of an event (any event type)
 		EVIDENCE: {
 			ADD: "MODERATION_EVENT_EVIDENCE_ADD",

@@ -101,6 +101,31 @@ export function createModerationEvent(
 /** The temporary event types, i.e. the ones that expire. */
 export type ExpiringEventType = 'ban' | 'mute' | 'timeout';
 
+/**
+ * Ends a user's active ban, mute or timeout early in their moderation history (e.g. after an
+ * unban), recording who ended it and why in the audit log.
+ * @returns The ended event's ID, or null if the user had no active event of that type (e.g.
+ * they were banned outside Loki, so there was no record to end)
+ */
+export async function endActiveModerationEvent(
+  guildId: string,
+  userId: string,
+  input: { eventType: ExpiringEventType; endedBy: string; reason?: string },
+): Promise<number | null> {
+  try {
+    const result = await backendRequest<{ endedEventId: number }>(
+      `/guilds/${guildId}/moderation/events/${userId}/end`,
+      { method: 'POST', body: input },
+    );
+    return result.endedEventId;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 /** An active temporary event whose time is up, waiting to be lifted. */
 export interface ExpiredModerationEvent {
   id: number;
