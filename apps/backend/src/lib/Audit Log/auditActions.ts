@@ -23,6 +23,12 @@ export const AuditAction = {
 		// A newer event of the same action type replaced an event that was still active.
 		// This is how a wrong expiry is corrected, so the old and new expiry are in the details.
 		SUPERSEDE: "MODERATION_EVENT_SUPERSEDE",
+		// A temporary event (ban, mute, timeout) reached its expiry and the bot processed it:
+		// ENDED when the action was lifted, FAILED when the bot couldn't lift it
+		EXPIRE: {
+			ENDED: "MODERATION_EVENT_EXPIRE_ENDED",
+			FAILED: "MODERATION_EVENT_EXPIRE_FAILED",
+		},
 		// Attaching, changing or removing the evidence of an event (any event type)
 		EVIDENCE: {
 			ADD: "MODERATION_EVENT_EVIDENCE_ADD",

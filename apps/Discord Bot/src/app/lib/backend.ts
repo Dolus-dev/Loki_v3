@@ -97,3 +97,38 @@ export function createModerationEvent(
     body: input,
   });
 }
+
+/** The temporary event types, i.e. the ones that expire. */
+export type ExpiringEventType = 'ban' | 'mute' | 'timeout';
+
+/** An active temporary event whose time is up, waiting to be lifted. */
+export interface ExpiredModerationEvent {
+  id: number;
+  guildId: string;
+  /** The user the action was taken against. */
+  userId: string;
+  eventType: ExpiringEventType;
+  /** ISO 8601 date-time. */
+  expiresAt: string;
+}
+
+/**
+ * Lists expired events of the given types across every guild, oldest expiry first, at most
+ * `limit` at a time. Only ask for types the bot knows how to lift.
+ */
+export function getExpiredModerationEvents(types: ExpiringEventType[], limit = 50): Promise<ExpiredModerationEvent[]> {
+  const query = new URLSearchParams({ types: types.join(','), limit: String(limit) });
+  return backendRequest(`/moderation/expired?${query}`);
+}
+
+/**
+ * Reports how lifting an expired event went: "ended" if it was lifted (or already had been),
+ * "failed" if it can't be. Throws a `BackendError` with status 409 if the event stopped being
+ * active in the meantime (e.g. a newer ban replaced it), which callers can safely ignore.
+ */
+export function resolveExpiredModerationEvent(
+  eventId: number,
+  input: { outcome: 'ended' | 'failed'; resolvedBy: string; detail?: string },
+): Promise<void> {
+  return backendRequest(`/moderation/expired/${eventId}/resolve`, { method: 'POST', body: input });
+}
