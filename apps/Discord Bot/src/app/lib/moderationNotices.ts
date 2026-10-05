@@ -35,9 +35,10 @@ import { Logger } from '../../framework/logger.js';
  * by the expiry processor when a temporary mute runs out. `timeoutRemoved` is sent by
  * /remove-timeout; a timeout that simply runs out gets no notice.
  */
-export type NoticeAction = 'kick' | 'ban' | 'mute' | 'unmute' | 'muteExpired' | 'timeout' | 'timeoutRemoved';
+export type NoticeAction = 'warn' | 'kick' | 'ban' | 'mute' | 'unmute' | 'muteExpired' | 'timeout' | 'timeoutRemoved';
 
 export const DEFAULT_NOTICE_TEMPLATES: Record<NoticeAction, string> = {
+  warn: '## You received a warning in {server}\n**Reason:** {reason}\n\nThis warning has been added to your record in the server.',
   kick: '## You were kicked from {server}\n**Reason:** {reason}\n\nYou can rejoin the server if you have a new invite.',
   ban: '## You were banned from {server}\n**Reason:** {reason}\n**Duration:** {duration}',
   mute: "## You were muted in {server}\n**Reason:** {reason}\n**Duration:** {duration}\n\nYou can still read the server, but you can't talk until the mute ends.",
@@ -50,6 +51,7 @@ export const DEFAULT_NOTICE_TEMPLATES: Record<NoticeAction, string> = {
 
 /** Accent color down the side of each notice. */
 const NOTICE_COLORS: Record<NoticeAction, number> = {
+  warn: Colors.DarkGold,
   kick: Colors.Orange,
   ban: Colors.Red,
   mute: Colors.Gold,
