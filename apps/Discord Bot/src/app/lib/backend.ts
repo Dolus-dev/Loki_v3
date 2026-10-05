@@ -59,6 +59,14 @@ export interface ModerationActionSettings {
 
 export type ModerationSettingsSection = 'warns' | 'kicks' | 'bans' | 'mutes' | 'timeouts';
 
+/** The mute settings (Moderation → Mutes in the dashboard). */
+export interface MuteSettings extends ModerationActionSettings {
+  /** Used when /mute is run without a duration. 0 = permanent. */
+  defaultMuteDurationSeconds: number;
+  /** The role a mute gives, or null if the server hasn't chosen one (then /mute can't work). */
+  muteRoleId: string | null;
+}
+
 /**
  * Gets a guild's settings for one moderation action. The backend creates the default row
  * on first read, so this always returns settings for a registered guild.

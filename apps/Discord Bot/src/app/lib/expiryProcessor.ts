@@ -3,16 +3,18 @@ import { Logger } from '../../framework/logger.js';
 import {
   BackendError,
   getExpiredModerationEvents,
+  getModerationActionSettings,
   resolveExpiredModerationEvent,
   type ExpiredModerationEvent,
   type ExpiringEventType,
+  type MuteSettings,
 } from './backend.js';
 
 /**
  * Lifts temporary moderation actions when their time is up.
  *
- * Every `POLL_INTERVAL_MS` the bot asks the backend which active bans/timeouts have expired
- * (across all servers), lifts each one in Discord, and reports back "ended" or "failed".
+ * Every `POLL_INTERVAL_MS` the bot asks the backend which active bans/mutes/timeouts have
+ * expired (across all servers), lifts each one in Discord, and reports back "ended" or "failed".
  * So an expired ban is lifted within about a minute of its expiry, and also after downtime:
  * anything that expired while the bot was offline is picked up on the first poll.
  *
@@ -66,7 +68,54 @@ const handlers: Partial<Record<ExpiringEventType, ExpiryHandler>> = {
     return { outcome: 'ended' };
   },
 
-  // mute: added together with /mute (removing the mute role)
+  // A mute is the server's mute role, so lifting it means taking the role away again
+  async mute(client, event) {
+    const guild = client.guilds.cache.get(event.guildId);
+    if (!guild) {
+      return { outcome: 'failed', detail: "Loki isn't in this server anymore" };
+    }
+
+    let settings: MuteSettings;
+    try {
+      settings = await getModerationActionSettings<MuteSettings>(guild.id, 'mutes');
+    } catch (error) {
+      Logger.warn(`Couldn't load mute settings to lift expired mute #${event.id}; will retry:`, error);
+      return null;
+    }
+    // The current mute role is used. The dashboard only lets admins swap it for another role,
+    // so it's normally the one the mute gave; if it was swapped, the member won't have it and
+    // there's nothing to remove
+    if (!settings.muteRoleId) {
+      return { outcome: 'ended', detail: 'the server has no mute role set' };
+    }
+
+    try {
+      const member = await guild.members.fetch(event.userId);
+      if (!member.roles.cache.has(settings.muteRoleId)) {
+        return { outcome: 'ended', detail: 'the member no longer had the mute role' };
+      }
+      await member.roles.remove(settings.muteRoleId, `Temporary mute expired (moderation event #${event.id})`);
+      return { outcome: 'ended' };
+    } catch (error) {
+      if (error instanceof DiscordAPIError) {
+        // Left the server: Discord drops roles on leaving, so the mute is gone either way
+        if (error.code === RESTJSONErrorCodes.UnknownMember) {
+          return { outcome: 'ended', detail: 'the member had left the server' };
+        }
+        if (error.code === RESTJSONErrorCodes.UnknownRole) {
+          return { outcome: 'ended', detail: 'the mute role no longer exists' };
+        }
+        if (typeof error.code === 'number' && PERMANENT_ERRORS.has(error.code)) {
+          return {
+            outcome: 'failed',
+            detail: "Loki lacks Manage Roles, or the mute role is above Loki's highest role",
+          };
+        }
+      }
+      Logger.warn(`Couldn't lift expired mute #${event.id}; will retry:`, error);
+      return null;
+    }
+  },
 };
 
 const HANDLED_TYPES = Object.keys(handlers) as ExpiringEventType[];

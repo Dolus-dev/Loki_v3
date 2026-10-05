@@ -30,17 +30,19 @@ import { Logger } from '../../framework/logger.js';
  */
 
 /** The actions that notify the member. Extend as more moderation commands are added. */
-export type NoticeAction = 'kick' | 'ban';
+export type NoticeAction = 'kick' | 'ban' | 'mute';
 
 export const DEFAULT_NOTICE_TEMPLATES: Record<NoticeAction, string> = {
   kick: '## You were kicked from {server}\n**Reason:** {reason}\n\nYou can rejoin the server if you have a new invite.',
   ban: '## You were banned from {server}\n**Reason:** {reason}\n**Duration:** {duration}',
+  mute: "## You were muted in {server}\n**Reason:** {reason}\n**Duration:** {duration}\n\nYou can still read the server, but you can't talk until the mute ends.",
 };
 
 /** Accent color down the side of each notice. */
 const NOTICE_COLORS: Record<NoticeAction, number> = {
   kick: Colors.Orange,
   ban: Colors.Red,
+  mute: Colors.Gold,
 };
 
 export interface NoticeValues {
