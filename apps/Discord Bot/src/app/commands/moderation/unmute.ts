@@ -2,6 +2,7 @@ import { defineCommand } from '../../../framework/types.js';
 import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { Logger } from '../../../framework/logger.js';
 import { endActiveModerationEvent, getModerationActionSettings, type MuteSettings } from '../../lib/backend.js';
+import { sendModerationNotice } from '../../lib/moderationNotices.js';
 
 // The backend stores reasons up to 512 characters, and Discord's audit log has the same limit
 const MAX_REASON_LENGTH = 512;
@@ -17,7 +18,8 @@ const MAX_REASON_LENGTH = 512;
  *
  * Steps, in order:
  *   1. Load the mute settings and enforce them.
- *   2. If the user is in the server and has the mute role, remove it.
+ *   2. If the user is in the server and has the mute role, remove it, and DM them that they
+ *      were unmuted and why (see lib/moderationNotices.ts). Closed DMs don't stop the unmute.
  *   3. End their active mute in the moderation history (so the expiry processor leaves it
  *      alone). This also works for someone who left the server: leaving drops their roles,
  *      but an active mute record can still be closed.
@@ -93,6 +95,9 @@ export default defineCommand({
     const muteRole = settings.muteRoleId ? guild.roles.cache.get(settings.muteRoleId) : undefined;
     const hasMuteRole = Boolean(member && muteRole && member.roles.cache.has(muteRole.id));
 
+    // Whether they got the "you were unmuted" DM (only sent when a role was actually removed)
+    let notified = false;
+
     if (member && muteRole && hasMuteRole) {
       // Removing a role needs Manage Roles and the role below the bot's highest (`editable`)
       if (!muteRole.editable) {
@@ -114,6 +119,9 @@ export default defineCommand({
         await interaction.editReply("Something went wrong and the member wasn't unmuted. Please try again.");
         return;
       }
+
+      // Let them know they can talk again. Never throws: closed DMs don't stop the unmute.
+      notified = (await sendModerationNotice(member, 'unmute', reason)) !== null;
     }
 
     // 3. Close the mute in their moderation history. Mentions never ping anyone (allowedMentions).
@@ -141,10 +149,12 @@ export default defineCommand({
     }
 
     Logger.info(`${moderator.id} unmuted ${user.id} in guild ${guild.id}.`);
-    const note = hasMuteRole
-      ? ''
-      : // Only the record was active: they left (dropping the role) or the role was removed by hand
-        "\nThey didn't have the mute role anymore, so only their moderation history was updated.";
+    const note = !hasMuteRole
+      ? // Only the record was active: they left (dropping the role) or the role was removed by hand
+        "\nThey didn't have the mute role anymore, so only their moderation history was updated."
+      : notified
+        ? '\nThey were notified by DM.'
+        : "\n⚠️ They couldn't be notified: their DMs are probably closed.";
     await interaction.editReply({
       content: `Unmuted ${user}${reason ? ` for: ${reason}` : '.'}${note}`,
       allowedMentions: { parse: [] },

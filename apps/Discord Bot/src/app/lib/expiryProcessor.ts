@@ -9,6 +9,7 @@ import {
   type ExpiringEventType,
   type MuteSettings,
 } from './backend.js';
+import { sendModerationNotice } from './moderationNotices.js';
 
 /**
  * Lifts temporary moderation actions when their time is up.
@@ -95,7 +96,10 @@ const handlers: Partial<Record<ExpiringEventType, ExpiryHandler>> = {
         return { outcome: 'ended', detail: 'the member no longer had the mute role' };
       }
       await member.roles.remove(settings.muteRoleId, `Temporary mute expired (moderation event #${event.id})`);
-      return { outcome: 'ended' };
+
+      // Let them know they can talk again. Never throws: closed DMs don't affect the outcome.
+      const notice = await sendModerationNotice(member, 'muteExpired', undefined);
+      return { outcome: 'ended', detail: notice ? 'the member was notified by DM' : undefined };
     } catch (error) {
       if (error instanceof DiscordAPIError) {
         // Left the server: Discord drops roles on leaving, so the mute is gone either way
