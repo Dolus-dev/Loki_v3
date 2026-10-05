@@ -80,6 +80,29 @@ export function getModerationActionSettings<T extends ModerationActionSettings =
   return backendRequest<T>(`/guilds/${guildId}/settings/${section}`);
 }
 
+/** The /throw settings (Fun → Throw Command in the dashboard). */
+export interface ThrowSettings {
+  customItemsEnabled: boolean;
+  /** Use only the custom items. Has no effect unless custom items are enabled and there are 20+. */
+  customItemsOnly: boolean;
+  customItems: string[];
+  /** Per-member wait between throws. 0 = no cooldown. */
+  cooldownSeconds: number;
+  /** Whether a throw can bounce onto someone else. */
+  redirectEnabled: boolean;
+  /** Only members with one of these roles can be hit by a redirected throw. */
+  redirectOptInRoleIds: string[];
+  /** If any are set, /throw only works in these channels. Takes precedence over the blacklist. */
+  whitelistedChannels: string[];
+  /** /throw doesn't work in these channels (unless a whitelist is set). */
+  blacklistedChannels: string[];
+}
+
+/** Gets a guild's /throw settings (the backend creates the defaults on first read). */
+export function getThrowSettings(guildId: string): Promise<ThrowSettings> {
+  return backendRequest<ThrowSettings>(`/guilds/${guildId}/settings/throw`);
+}
+
 export interface CreateModerationEventInput {
   /** The moderator who took the action. */
   issuedBy: string;
