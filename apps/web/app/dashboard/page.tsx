@@ -5,6 +5,7 @@ import useSWR from "swr";
 import Image from "next/image";
 import { useUser } from "../lib/hooks/useUser";
 import { API_URL, fetcher } from "../lib/api";
+import { botInviteUrl } from "../lib/discordInvite";
 import { redirect } from "next/navigation";
 import { useEffect } from "react";
 
@@ -33,6 +34,8 @@ export default function ServerSelectorDashboardPage() {
 								a.name.localeCompare(b.name),
 						)
 						.map((guild) => {
+							// Only servers without the bot need an invite link (null if no client ID is set)
+							const inviteUrl = guild.setUp ? null : botInviteUrl(guild.id);
 							return (
 								<div
 									key={guild.id}
@@ -76,16 +79,28 @@ export default function ServerSelectorDashboardPage() {
 											<span className="truncate">{guild.name}</span>
 										</div>
 
-										<Link
-											className="bg-neutral-700 p-2 rounded-md hover:bg-neutral-600 transition h-10 "
-											href={
-												//TODO: Change href to bot invite link if guild is not set up
-												guild.setUp
-													? `/dashboard/${guild.id}/home`
-													: `/dashboard/${guild.id}/home`
-											}>
-											{guild.setUp ? "Manage" : "Add to Server"}
-										</Link>
+										{guild.setUp ? (
+											<Link
+												className="bg-neutral-700 p-2 rounded-md hover:bg-neutral-600 transition h-10 "
+												href={`/dashboard/${guild.id}/home`}>
+												Manage
+											</Link>
+										) : (
+											// The bot isn't in this server yet: open Discord's invite
+											// screen with this server already selected
+											<a
+												className="bg-brand-700 p-2 rounded-md hover:bg-brand-600 transition h-10 "
+												href={inviteUrl ?? undefined}
+												title={
+													inviteUrl
+														? undefined
+														: "Set NEXT_PUBLIC_DISCORD_CLIENT_ID to enable the invite link"
+												}
+												target="_blank"
+												rel="noopener noreferrer">
+												Add to Server
+											</a>
+										)}
 									</div>
 								</div>
 							);
