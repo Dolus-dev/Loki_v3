@@ -21,7 +21,13 @@ import { ThrowSettings } from "./models/Fun/Throw";
 // URL parameters that control TLS in the pg driver. When we supply the TLS settings ourselves
 // they have to go: the driver lets the connection string override the `ssl` option, so any
 // of these (even `sslmode=require`) would silently discard our CA certificate.
-const URL_TLS_PARAMS = ["sslmode", "sslrootcert", "sslcert", "sslkey", "uselibpqcompat"];
+const URL_TLS_PARAMS = [
+	"sslmode",
+	"sslrootcert",
+	"sslcert",
+	"sslkey",
+	"uselibpqcompat",
+];
 
 /**
  * The connection URL and TLS settings to use.
@@ -62,8 +68,12 @@ const connection = databaseConnection(env.DATABASE_URL, env.DATABASE_CA_CERT);
 export const AppDataSource = new DataSource({
 	type: "postgres",
 	url: connection.url,
-	// Only when we have TLS settings of our own; otherwise the URL's sslmode applies
-	...(connection.ssl ? { ssl: connection.ssl } : {}),
+	ssl: true,
+	extra: {
+		ssl: {
+			rejectUnauthorized: true,
+		},
+	},
 	entities: [
 		User,
 		ModerationEvents,
