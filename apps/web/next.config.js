@@ -1,10 +1,7 @@
 const nextConfig = {
 	images: {
-		// Load images straight from their files instead of through Next's image optimizer
-		// (/_next/image): on the Vercel deployment, which runs the web app as a service, that
-		// endpoint returns 404, so every <Image> broke. Images are sized at the source instead
-		// (e.g. public/logo-512.png), and Discord's CDN resizes its own via ?size=.
-		unoptimized: true,
+		// Optimized by Vercel's image optimizer (/_next/image). That needs the web app deployed
+		// as a regular Next.js project: when it ran as a Vercel "service", the endpoint 404'd.
 		remotePatterns: [
 			{
 				protocol: "https",
