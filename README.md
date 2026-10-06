@@ -106,6 +106,7 @@ Each app reads a `.env` file in its own folder. The backend and bot validate the
 | Variable | Required | Notes |
 |---|---|---|
 | `DATABASE_URL` | yes | PostgreSQL connection string. `DATABASE_POSTGRES_URL`, as added by Vercel's Supabase integration, is accepted instead |
+| `DATABASE_CA_CERT` | no | The database's CA certificate (PEM), for hosts not signed by a public CA such as Supabase. When set, the connection is TLS with full certificate verification |
 | `REDIS_URL` | yes | e.g. `redis://default:<password>@localhost:6379`; use `rediss://` (TLS) for hosted Redis such as Upstash |
 | `SESSION_SECRET` | yes | Any long random string |
 | `TOKEN_ENCRYPTION_KEY` | yes | 32 random bytes, base64. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |

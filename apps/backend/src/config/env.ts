@@ -43,6 +43,11 @@ const envSchema = z
 		// aren't used by the backend.
 		DATABASE_URL: optionalString,
 		DATABASE_POSTGRES_URL: optionalString,
+		// The CA certificate (PEM text) to verify the database's TLS certificate against, for
+		// hosts whose certificates aren't signed by a public CA, e.g. Supabase (download it from
+		// Supabase: Project Settings > Database > SSL Configuration). Optional; when set, the
+		// connection is always TLS and fully verified (see src/data-source.ts).
+		DATABASE_CA_CERT: optionalString,
 		// Key for encrypting stored Discord tokens: 32 random bytes, base64-encoded
 		TOKEN_ENCRYPTION_KEY: z
 			.string()

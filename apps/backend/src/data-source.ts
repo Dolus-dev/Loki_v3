@@ -18,17 +18,52 @@ import { WarnSettings } from "./models/Moderation/Action Settings/WarnSettings";
 import { StarboardSettings } from "./models/Fun/Starboard";
 import { ThrowSettings } from "./models/Fun/Throw";
 
+// URL parameters that control TLS in the pg driver. When we supply the TLS settings ourselves
+// they have to go: the driver lets the connection string override the `ssl` option, so any
+// of these (even `sslmode=require`) would silently discard our CA certificate.
+const URL_TLS_PARAMS = ["sslmode", "sslrootcert", "sslcert", "sslkey", "uselibpqcompat"];
+
+/**
+ * The connection URL and TLS settings to use.
+ *
+ * - With DATABASE_CA_CERT set: TLS is always on and the server's certificate is verified
+ *   against that CA (chain and hostname). The URL's own TLS parameters are removed so they
+ *   can't override this. This is how to connect to Supabase securely: its certificates are
+ *   signed by Supabase's own CA, which Node doesn't trust by default, so plain
+ *   `sslmode=require` fails with "self-signed certificate in certificate chain".
+ * - Without it: the URL is used exactly as given (local databases, or hosts like Neon whose
+ *   certificates Node already trusts, with `?sslmode=require` in the URL).
+ */
+export function databaseConnection(url: string, caCert?: string) {
+	if (!caCert) {
+		return { url, ssl: undefined };
+	}
+
+	const parsed = new URL(url);
+	for (const param of URL_TLS_PARAMS) {
+		parsed.searchParams.delete(param);
+	}
+	return {
+		url: parsed.toString(),
+		// Env var values often hold the PEM's line breaks as literal "\n"; restore them
+		ssl: { ca: caCert.replace(/\\n/g, "\n"), rejectUnauthorized: true },
+	};
+}
+
+const connection = databaseConnection(env.DATABASE_URL, env.DATABASE_CA_CERT);
+
 /**
  * The database connection, shared by the server (src/index.ts, which re-exports it) and the
  * one-off schema script (src/scripts/syncSchema.ts). Kept in its own module so the script
  * can use it without starting the server.
  *
- * Hosted PostgreSQL (e.g. on Vercel) usually requires TLS: add `?sslmode=require` to
- * DATABASE_URL, which the pg driver reads from the connection string.
+ * Hosted PostgreSQL usually requires TLS; see `databaseConnection` for how it's configured.
  */
 export const AppDataSource = new DataSource({
 	type: "postgres",
-	url: env.DATABASE_URL,
+	url: connection.url,
+	// Only when we have TLS settings of our own; otherwise the URL's sslmode applies
+	...(connection.ssl ? { ssl: connection.ssl } : {}),
 	entities: [
 		User,
 		ModerationEvents,
