@@ -115,7 +115,7 @@ export default function ModerationSettingsForm(
 						e.preventDefault();
 						void form.submit();
 					}}>
-					<div className="flex flex-col gap-5 ml-10 mt-2">
+					<div className="flex flex-col gap-5 md:ml-10 mt-2">
 						{commonToggles.map(({ key, label, help }) => (
 							<div
 								key={key}
@@ -133,7 +133,7 @@ export default function ModerationSettingsForm(
 					</div>
 
 					{children && (
-						<div className="flex flex-col gap-2 ml-10 xl:ml-0 mt-2">
+						<div className="flex flex-col gap-2 md:ml-10 xl:ml-0 mt-2">
 							{children}
 						</div>
 					)}

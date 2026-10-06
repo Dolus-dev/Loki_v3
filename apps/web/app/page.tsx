@@ -140,11 +140,11 @@ export default function Home() {
 							width={256}
 							height={256}
 							priority
-							className="size-24 shrink-0"
+							className="size-16 sm:size-24 shrink-0"
 						/>
-						<span className="text-7xl font-extrabold tracking-wider">LOKI</span>
+						<span className="text-5xl sm:text-7xl font-extrabold tracking-wider">LOKI</span>
 					</div>
-					<h1 className="text-4xl font-bold leading-tight text-neutral-100">
+					<h1 className="text-3xl sm:text-4xl font-bold leading-tight text-neutral-100">
 						Moderation that works the way{" "}
 						<span className="text-brand-500">your server</span> does.
 					</h1>
@@ -162,7 +162,7 @@ export default function Home() {
 			{/* Features */}
 			<section id="features" className="flex flex-col gap-10 scroll-mt-24">
 				<div className="flex flex-col items-center gap-3 text-center">
-					<h2 className="text-4xl font-bold text-neutral-100">
+					<h2 className="text-3xl sm:text-4xl font-bold text-neutral-100">
 						Everything your community needs
 					</h2>
 					<p className="text-lg text-neutral-300 max-w-2xl">
@@ -196,7 +196,7 @@ export default function Home() {
 
 			{/* How it works */}
 			<section className="flex flex-col gap-10">
-				<h2 className="text-center text-4xl font-bold text-neutral-100">
+				<h2 className="text-center text-3xl sm:text-4xl font-bold text-neutral-100">
 					Up and running in minutes
 				</h2>
 				<ol className="grid grid-cols-1 gap-6 md:grid-cols-3">

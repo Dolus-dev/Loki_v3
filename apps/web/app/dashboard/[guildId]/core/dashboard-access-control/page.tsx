@@ -62,7 +62,7 @@ export default function DashboardAccessPage() {
 						e.preventDefault();
 						void form.submit();
 					}}>
-					<div className="flex-col flex gap-2 ml-10">
+					<div className="flex-col flex gap-2 md:ml-10">
 						<span className="text-lg font-medium text-neutral-200">
 							Roles with Edit Access
 						</span>
@@ -76,7 +76,7 @@ export default function DashboardAccessPage() {
 						/>
 						<FieldError message={fieldErrors.rolesWithDashboardEditAccess} />
 					</div>
-					<div className="flex-col flex gap-2 ml-10">
+					<div className="flex-col flex gap-2 md:ml-10">
 						<span className="text-lg font-medium text-neutral-200">
 							Roles with View Access
 						</span>

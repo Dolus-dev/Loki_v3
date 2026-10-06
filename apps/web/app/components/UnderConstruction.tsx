@@ -41,7 +41,7 @@ export default function UnderConstruction(props: UnderConstructionProps) {
 			</div>
 
 			<div className="flex flex-col gap-4">
-				<h1 className="text-5xl font-extrabold text-neutral-100">{title}</h1>
+				<h1 className="text-4xl sm:text-5xl font-extrabold text-neutral-100">{title}</h1>
 				<p className="text-lg text-neutral-300">{description}</p>
 			</div>
 

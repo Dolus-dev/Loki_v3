@@ -169,7 +169,7 @@ export default function AboutPage() {
 					priority
 					className="size-24"
 				/>
-				<h1 className="text-5xl font-extrabold tracking-wide text-neutral-100">
+				<h1 className="text-4xl sm:text-5xl font-extrabold tracking-wide text-neutral-100">
 					About Loki
 				</h1>
 				<p className="max-w-3xl text-xl text-neutral-300">

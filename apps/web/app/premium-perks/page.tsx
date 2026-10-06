@@ -63,7 +63,7 @@ export default function PremiumPerksPage() {
 				<div className="flex size-20 items-center justify-center rounded-full bg-brand-800/70 text-4xl text-brand-400">
 					<FaUnlock />
 				</div>
-				<h1 className="text-5xl font-extrabold text-neutral-100">
+				<h1 className="text-4xl sm:text-5xl font-extrabold text-neutral-100">
 					Every feature. <span className="text-brand-500">Free.</span>
 				</h1>
 				<p className="max-w-3xl text-xl text-neutral-300">
@@ -105,14 +105,14 @@ export default function PremiumPerksPage() {
 					Free vs premium
 				</h2>
 				<div className="overflow-hidden rounded-xl border border-neutral-700/60">
-					<table className="w-full text-left">
+					<table className="w-full text-left text-sm sm:text-base">
 						<thead className="bg-neutral-800">
 							<tr>
-								<th className="px-5 py-3 font-semibold text-neutral-200">
+								<th className="px-3 sm:px-5 py-3 font-semibold text-neutral-200">
 									<span className="sr-only">Feature</span>
 								</th>
-								<th className="px-5 py-3 font-semibold text-neutral-200">Free</th>
-								<th className="px-5 py-3 font-semibold text-brand-400">Premium</th>
+								<th className="px-3 sm:px-5 py-3 font-semibold text-neutral-200">Free</th>
+								<th className="px-3 sm:px-5 py-3 font-semibold text-brand-400">Premium</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -122,13 +122,13 @@ export default function PremiumPerksPage() {
 									className="border-t border-neutral-700/60 bg-neutral-800/40">
 									<th
 										scope="row"
-										className="px-5 py-3 font-medium text-neutral-100">
+										className="px-3 sm:px-5 py-3 font-medium text-neutral-100">
 										{row.feature}
 									</th>
-									<td className="px-5 py-3">
+									<td className="px-3 sm:px-5 py-3">
 										<ComparisonCell value={row.free} />
 									</td>
-									<td className="px-5 py-3">
+									<td className="px-3 sm:px-5 py-3">
 										<ComparisonCell value={row.premium} />
 									</td>
 								</tr>

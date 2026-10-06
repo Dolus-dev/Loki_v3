@@ -120,7 +120,7 @@ export default function MultiSelectMenu(props: MultiSelectProps) {
 						animate={{ opacity: 1, scale: 1, y: 0 }}
 						exit={{ opacity: 0, scale: 0.95, y: -10 }}
 						transition={{ type: "spring", stiffness: 500, damping: 30 }}
-						className="absolute z-10 w-full mt-2 bg-neutral-800 rounded-md shadow-lg max-h-60 scrollbar-thin scrollbar-track-rounded-lg scrollbar-thumb-brand-800 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-brand-800/60  scrollbar-track-neutral-700 overflow-y-auto">
+						className="absolute z-50 w-full mt-2 bg-neutral-800 rounded-md shadow-lg max-h-60 scrollbar-thin scrollbar-track-rounded-lg scrollbar-thumb-brand-800 scrollbar-thumb-rounded-full scrollbar-hover:scrollbar-thumb-brand-800/60  scrollbar-track-neutral-700 overflow-y-auto">
 						{options.map((option) => {
 							const isSelected = value.includes(option.id);
 							return (

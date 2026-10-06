@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import DashboardLayoutNav from "../../components/Dashboard Layout Nav/Layout Nav";
+import DashboardShell from "../../components/Dashboard Layout Nav/DashboardShell";
 import { GuildAccessProvider } from "../../lib/hooks/useGuildAccess";
 
 // TODO: Add dynamic metadata based on guild ID/Name
@@ -22,10 +22,8 @@ export default function DashboardLayout({
 			<div aria-hidden className="fixed inset-0 -z-10 bg-neutral-800/30" />
 			{/* Nothing below renders unless the user has at least view access to this guild */}
 			<GuildAccessProvider>
-				<div className="flex flex-row relative place-self-center w-full 2xl:max-w-[1800px] overflow-hidden  ">
-					<DashboardLayoutNav />
-					<div className="w-full ">{children}</div>
-				</div>
+				{/* Sidebar + page; the sidebar becomes a slide-out menu below lg */}
+				<DashboardShell>{children}</DashboardShell>
 			</GuildAccessProvider>
 		</div>
 	);

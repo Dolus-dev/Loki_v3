@@ -21,7 +21,7 @@ export default function NotFound() {
 				height={128}
 				className="size-24 opacity-80"
 			/>
-			<span className="text-8xl font-extrabold tracking-wider text-brand-500">
+			<span className="text-7xl sm:text-8xl font-extrabold tracking-wider text-brand-500">
 				404
 			</span>
 			<h1 className="text-3xl font-bold text-neutral-100">

@@ -56,7 +56,7 @@ export default function ThrowCommandPage() {
 						e.preventDefault();
 						void form.submit();
 					}}>
-					<div className="flex flex-col gap-2 ml-10">
+					<div className="flex flex-col gap-2 md:ml-10">
 						<div className="flex flex-col gap-6 mt-5">
 							<Toggle
 								checked={values.customItemsEnabled}

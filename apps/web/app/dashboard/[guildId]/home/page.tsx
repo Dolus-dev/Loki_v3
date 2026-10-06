@@ -13,18 +13,19 @@ export default function DashboardHome() {
 
 	const { guildId } = useParams();
 	return (
-		<div className=" max-w-[85vw] ml-75 pb-4 place-self-center">
-			<section className="mt-10 flex flex-col gap-4 ">
-				<span className="text-4xl ml-6 font-semibold leading-tight text-neutral-100">
+		// Beside the docked sidebar from lg up (ml-75 = its width); full width below lg
+		<div className="px-4 lg:px-0 lg:max-w-[85vw] lg:ml-75 pb-4 place-self-center">
+			<section className="mt-6 md:mt-10 flex flex-col gap-4 ">
+				<span className="text-3xl md:text-4xl md:ml-6 font-semibold leading-tight text-neutral-100">
 					Welcome <span className="text-brand-600">{user?.username}</span>,
 				</span>
-				<span className="whitespace-pre-wrap text-neutral-300 text-lg ml-6">
+				<span className="whitespace-pre-wrap text-neutral-300 text-lg md:ml-6">
 					The Dashboard is currently in Alpha development.
 					<br />
 					Below you can see the latest implemented features and updates.
 				</span>
 			</section>
-			<section className="grid-cols-2  rounded-lg mt-4 p-6 gap-4 grid ">
+			<section className="grid-cols-1 md:grid-cols-2  rounded-lg mt-4 py-4 md:p-6 gap-4 grid ">
 				<div className="flex flex-col">
 					<div className="flex flex-col bg-neutral-600/40 rounded-lg p-4 gap-2">
 						<FaBoxOpen className="size-6 shrink-0 text-neutral-100" />

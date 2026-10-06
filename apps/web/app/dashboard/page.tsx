@@ -23,7 +23,8 @@ export default function ServerSelectorDashboardPage() {
 	return (
 		<>
 			{data && (
-				<section className="grid  grid-cols-2 xl:grid-cols-3 content-evenly justify-items-center place-self-center gap-x-14 relative mt-10">
+				// 1 column on phones, 2 from sm, 3 from xl; the wide desktop gap starts at lg
+				<section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 content-evenly justify-items-center place-self-center gap-x-6 lg:gap-x-14 px-4 lg:px-0 relative mt-10">
 					{/* Servers the bot is in (manageable/viewable) first, then ones it can be
 					    added to; alphabetical within each group. Sorts a copy, since `data`
 					    is SWR's cached array. */}
@@ -39,8 +40,10 @@ export default function ServerSelectorDashboardPage() {
 							return (
 								<div
 									key={guild.id}
-									className="mb-10 relative bg-neutral-700/60 rounded-xl p-4   ">
-									<div className="relative flex flex-col w-70 h-40 items-center justify-center p-4 rounded-lg mb-2 ">
+									// 312px wide like before (280px of content + padding), but shrinks
+									// on screens too narrow for that instead of overflowing
+									className="mb-10 relative bg-neutral-700/60 rounded-xl p-4 w-full max-w-78">
+									<div className="relative flex flex-col w-full h-40 items-center justify-center p-4 rounded-lg mb-2 ">
 										<div
 											style={{
 												backgroundImage: guild.icon
@@ -74,7 +77,7 @@ export default function ServerSelectorDashboardPage() {
 											</div>
 										)}
 									</div>
-									<div className="flex justify-between w-70 relative gap-4 flex-row mt-6 wrap-normal">
+									<div className="flex justify-between w-full relative gap-4 flex-row mt-6 wrap-normal">
 										<div className="flex flex-col mt-2 w-[50%]">
 											<span className="truncate">{guild.name}</span>
 										</div>

@@ -33,16 +33,19 @@ export default function SettingsPage(props: SettingsPageProps) {
 		props;
 
 	return (
-		<div className=" max-w-[85vw] ml-75 pb-4">
+		// From lg up, the page sits beside the docked sidebar (ml-75 = its width). Below lg the
+		// sidebar is a slide-out menu, so the page uses the full width with a small side padding,
+		// and the big desktop margins (md:mx-10, md:pl-15) start at md.
+		<div className="px-4 lg:px-0 lg:max-w-[85vw] lg:ml-75 pb-4">
 			{/* The root layout already pads for the fixed footer; pb-4 is just breathing room */}
 			<section className="mt-5 flex flex-col gap-4">
-				<h1 className="text-4xl pl-15 font-semibold leading-tight text-neutral-100">
+				<h1 className="text-3xl md:text-4xl md:pl-15 font-semibold leading-tight text-neutral-100">
 					{title}
 				</h1>
 
-				{tabs && <div className="mx-10">{tabs}</div>}
+				{tabs && <div className="md:mx-10">{tabs}</div>}
 
-				<div className="bg-neutral-700/60 p-4 mx-10 rounded-lg flex flex-col gap-6">
+				<div className="bg-neutral-700/60 p-4 md:mx-10 rounded-lg flex flex-col gap-6">
 					<section className="bg-alert-700 p-4 w-fit place-self-center items-center rounded-lg flex -mt-2 flex-row">
 						<FaTriangleExclamation className="size-6 shrink-0 mr-4" />
 						<span>

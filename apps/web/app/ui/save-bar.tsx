@@ -31,7 +31,7 @@ export default function SaveBar(props: SaveBarProps) {
 
 	if (readOnly) {
 		return (
-			<div className="mx-10 rounded-md bg-neutral-700/60 px-4 py-3 text-neutral-300">
+			<div className="md:mx-10 rounded-md bg-neutral-700/60 px-4 py-3 text-neutral-300">
 				{readOnlyMessage}
 			</div>
 		);
@@ -52,24 +52,26 @@ export default function SaveBar(props: SaveBarProps) {
 	}
 
 	return (
-		<div className="mx-10 flex flex-row flex-wrap items-center gap-4">
+		// On phones the status takes its own line and the two buttons share the next one
+		// (basis-full / flex-1); from sm up everything sits on one row as before
+		<div className="md:mx-10 flex flex-row flex-wrap items-center gap-4">
 			<span
 				role="status"
-				className={`flex-1 ${statusClass}`}>
+				className={`basis-full sm:basis-auto sm:flex-1 ${statusClass}`}>
 				{statusText}
 			</span>
 			<button
 				type="button"
 				onClick={onDiscard}
 				disabled={!isDirty || saving}
-				className="px-4 py-2 rounded-md font-semibold bg-neutral-600/50 text-neutral-200 hover:bg-neutral-600/70 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+				className="flex-1 sm:flex-none px-4 py-2 rounded-md font-semibold bg-neutral-600/50 text-neutral-200 hover:bg-neutral-600/70 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
 				Discard
 			</button>
 			<button
 				type="button"
 				onClick={onSave}
 				disabled={!isDirty || saving}
-				className="px-6 py-2 rounded-md font-semibold bg-info-700 text-neutral-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+				className="flex-1 sm:flex-none px-6 py-2 rounded-md font-semibold bg-info-700 text-neutral-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
 				{saving ? "Saving..." : "Save Changes"}
 			</button>
 		</div>
