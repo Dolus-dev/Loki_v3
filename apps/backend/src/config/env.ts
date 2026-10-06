@@ -7,7 +7,16 @@ const envSchema = z
 			.enum(["development", "test", "production"])
 			.default("development"),
 		PORT: z.coerce.number().int().positive().default(4000),
-		REDIS_PASSWORD: z.string().min(1, "REDIS_PASSWORD is required"),
+		// Redis connection URL, holding the host, port, user and password in one value:
+		//   redis://default:<password>@localhost:6379   (local, plain)
+		//   rediss://default:<password>@<host>:6379     (hosted, e.g. Upstash: rediss = TLS)
+		REDIS_URL: z
+			.string()
+			.min(1, "REDIS_URL is required")
+			.refine(
+				(value) => /^rediss?:\/\/[^/]/.test(value),
+				"REDIS_URL must be a redis:// or rediss:// URL",
+			),
 		SESSION_SECRET: z.string().min(1, "SESSION_SECRET is required"),
 		FRONTEND_ORIGIN: z.string().min(1, "FRONTEND_ORIGIN is required"),
 		BACKEND_ORIGIN: z.string().min(1, "BACKEND_ORIGIN is required"),
@@ -21,10 +30,6 @@ const envSchema = z
 			.default("http://localhost:4000/auth/callback"),
 		BOT_TOKEN: z.string().min(1, "BOT_TOKEN is required"),
 		BOT_API_SECRET: z.string().min(1, "BOT_API_SECRET is required"),
-		REDIS_HOST: z.string().min(1, "REDIS_HOST is required"),
-		REDIS_PORT: z.coerce.number().int().positive(),
-		// Connect to Redis over TLS; hosted Redis (e.g. Upstash) usually requires it
-		REDIS_TLS: z.stringbool().default(false),
 		DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 		// Key for encrypting stored Discord tokens: 32 random bytes, base64-encoded
 		TOKEN_ENCRYPTION_KEY: z

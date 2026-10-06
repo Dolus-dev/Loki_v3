@@ -91,7 +91,7 @@ packages/        shared ESLint and TypeScript configs, and a UI package
 
 - **Node.js** and **pnpm 10** (the repo pins `pnpm@10.26.1`).
 - **PostgreSQL:** an empty database for Loki. Outside production, the schema is created and updated automatically when the backend starts. In production it isn't: run `pnpm --filter backend db:sync` against that database once.
-- **Redis**, with a password set. The backend connects as the `default` user, and won't start without Redis.
+- **Redis.** The backend won't start without it. Its address and any username and password go in a single `REDIS_URL`.
 - **A Discord application** from the [Discord Developer Portal](https://discord.com/developers/applications):
   - **Bot tab:** a bot token, and the **Server Members** and **Message Content** privileged intents switched on. The bot requests both.
   - **OAuth2 tab:** add `http://localhost:4000/auth/callback` as a redirect URI. Dashboard login asks for the `identify`, `guilds` and `guilds.members.read` scopes.
@@ -106,8 +106,7 @@ Each app reads a `.env` file in its own folder. The backend and bot validate the
 | Variable | Required | Notes |
 |---|---|---|
 | `DATABASE_URL` | yes | PostgreSQL connection string |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | yes | |
-| `REDIS_TLS` | no | `true` for hosted Redis that requires TLS; defaults to `false` |
+| `REDIS_URL` | yes | e.g. `redis://default:<password>@localhost:6379`; use `rediss://` (TLS) for hosted Redis such as Upstash |
 | `SESSION_SECRET` | yes | Any long random string |
 | `TOKEN_ENCRYPTION_KEY` | yes | 32 random bytes, base64. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | yes | From the Discord application |

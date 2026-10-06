@@ -15,14 +15,11 @@ import { createClient } from "redis";
 // server); re-exported here because the rest of the backend imports it from this file
 export { AppDataSource };
 
+// Everything (host, port, user, password) comes from REDIS_URL; a rediss:// URL also turns on
+// TLS, which hosted Redis such as Upstash requires
 export const redisClient = createClient({
 	RESP: 3,
-	username: "default",
-	password: env.REDIS_PASSWORD,
-	// Hosted Redis (e.g. Upstash) usually only accepts TLS connections: set REDIS_TLS=true
-	socket: env.REDIS_TLS
-		? { host: env.REDIS_HOST, port: env.REDIS_PORT, tls: true }
-		: { host: env.REDIS_HOST, port: env.REDIS_PORT },
+	url: env.REDIS_URL,
 });
 
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
