@@ -7,6 +7,7 @@
 		"dev": "tsx watch src/index.ts",
 		"clean": "del /s /q dist",
 		"build": "tsc",
+		"db:sync": "tsx src/scripts/syncSchema.ts",
 		"start": " npm run clean && npm run build && node .",
 		"startNoClean": "npm run build & node ."
 	},
@@ -14,6 +15,7 @@
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
+		"connect-redis": "^10.0.0",
 		"cookie-parser": "^1.4.7",
 		"cors": "^2.8.5",
 		"discord.js": "^14.22.1",

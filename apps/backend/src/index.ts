@@ -1,50 +1,29 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { DataSource } from "typeorm";
 import "reflect-metadata";
 import { router as baseRouter } from "./routes/base-router";
 import { env } from "./config/env";
 import { errorHandler } from "./lib/Middlewares/errorHandler";
-
-import { User } from "./models/User";
-import { ModerationEvents } from "./models/Moderation/ModerationEvents";
 import session from "express-session";
-import { Guild } from "./models/Guild";
-import { DashboardSettings } from "./models/DashboardSettings";
-import { TicketSettings } from "./models/Tickets/TicketSettings";
-import { Tickets } from "./models/Tickets/Tickets";
-import { AuditLog } from "./models/Moderation/Logging/AuditLog";
-import { LoggingSettings } from "./models/Moderation/Logging/ServerLoggingSettings";
-import { BanSettings } from "./models/Moderation/Action Settings/BanSettings";
-import { KickSettings } from "./models/Moderation/Action Settings/KickSettings";
-import { MuteSettings } from "./models/Moderation/Action Settings/MuteSettings";
-import { TimeoutSettings } from "./models/Moderation/Action Settings/TimeoutSettings";
-import { WarnSettings } from "./models/Moderation/Action Settings/WarnSettings";
-import { StarboardSettings } from "./models/Fun/Starboard";
-import { ThrowSettings } from "./models/Fun/Throw";
+import { RedisStore } from "connect-redis";
+import { AppDataSource } from "./data-source";
 
-import { createClient, createClientPool } from "redis";
+import { createClient } from "redis";
 
-export const redisClient = createClient(
-	{
-		RESP: 3,
-		username: "default",
-		password: env.REDIS_PASSWORD,
-		socket: {
-			host: env.REDIS_HOST,
-			port: env.REDIS_PORT,
-		},
-	},
-	// {
-	// 	clientSideCache: {
-	// 		ttl: 10000,
-	// 		maxEntries: 1000,
-	// 		evictPolicy: "LRU",
-	// 	},
-	// 	minimum: 5,
-	// }
-);
+// The database connection lives in its own module (so scripts can use it without starting the
+// server); re-exported here because the rest of the backend imports it from this file
+export { AppDataSource };
+
+export const redisClient = createClient({
+	RESP: 3,
+	username: "default",
+	password: env.REDIS_PASSWORD,
+	// Hosted Redis (e.g. Upstash) usually only accepts TLS connections: set REDIS_TLS=true
+	socket: env.REDIS_TLS
+		? { host: env.REDIS_HOST, port: env.REDIS_PORT, tls: true }
+		: { host: env.REDIS_HOST, port: env.REDIS_PORT },
+});
 
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
 redisClient.on("connect", () => console.log("Connecting to Redis server"));
@@ -63,9 +42,12 @@ if (env.TRUST_PROXY > 0) {
 app.use(cookieParser());
 app.use(express.json());
 
-// No `store` is configured, so sessions live in memory and are lost on restart
+// Sessions are stored in Redis, so every server instance sees the same logins. That's what
+// keeps users logged in on Vercel, where any of several instances can handle a request, and
+// it also means a restart no longer logs everyone out.
 app.use(
 	session({
+		store: new RedisStore({ client: redisClient, prefix: "session:" }),
 		secret: env.SESSION_SECRET,
 		resave: false,
 		saveUninitialized: false,
@@ -92,34 +74,6 @@ app.use(errorHandler);
 
 const PORT = env.PORT;
 
-export const AppDataSource = new DataSource({
-	type: "postgres",
-	url: env.DATABASE_URL,
-	// ssl: true,
-	entities: [
-		User,
-		ModerationEvents,
-		Guild,
-		DashboardSettings,
-		TicketSettings,
-		Tickets,
-		AuditLog,
-		LoggingSettings,
-		BanSettings,
-		KickSettings,
-		MuteSettings,
-		TimeoutSettings,
-		WarnSettings,
-		StarboardSettings,
-		ThrowSettings,
-	],
-	// Outside production the schema is auto-synced to match the entities. Data is
-	// kept unless DB_RESET=true, which drops everything on every start.
-	synchronize: env.NODE_ENV !== "production" ? true : false,
-	dropSchema: env.DB_RESET,
-	logging: false,
-});
-
 const REDIS_CONNECT_TIMEOUT_MS = 10_000;
 
 async function startServer(): Promise<void> {
@@ -140,6 +94,8 @@ async function startServer(): Promise<void> {
 		await AppDataSource.initialize();
 		console.log("Data Source has been initialized!");
 
+		// On Vercel, this port listener is how the platform finds the Express app (see
+		// https://vercel.com/docs/frameworks/backend/express); locally it's a normal server
 		app.listen(PORT, () => {
 			console.log(`Server is running on ${env.BACKEND_ORIGIN}`);
 		});

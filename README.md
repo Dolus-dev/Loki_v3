@@ -90,7 +90,7 @@ packages/        shared ESLint and TypeScript configs, and a UI package
 ### Prerequisites
 
 - **Node.js** and **pnpm 10** (the repo pins `pnpm@10.26.1`).
-- **PostgreSQL:** an empty database for Loki. Outside production, the schema is created and updated automatically when the backend starts.
+- **PostgreSQL:** an empty database for Loki. Outside production, the schema is created and updated automatically when the backend starts. In production it isn't: run `pnpm --filter backend db:sync` against that database once.
 - **Redis**, with a password set. The backend connects as the `default` user, and won't start without Redis.
 - **A Discord application** from the [Discord Developer Portal](https://discord.com/developers/applications):
   - **Bot tab:** a bot token, and the **Server Members** and **Message Content** privileged intents switched on. The bot requests both.
@@ -107,6 +107,7 @@ Each app reads a `.env` file in its own folder. The backend and bot validate the
 |---|---|---|
 | `DATABASE_URL` | yes | PostgreSQL connection string |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | yes | |
+| `REDIS_TLS` | no | `true` for hosted Redis that requires TLS; defaults to `false` |
 | `SESSION_SECRET` | yes | Any long random string |
 | `TOKEN_ENCRYPTION_KEY` | yes | 32 random bytes, base64. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | yes | From the Discord application |

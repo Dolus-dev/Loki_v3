@@ -6,7 +6,9 @@ import {
 	PrimaryGeneratedColumn,
 } from "typeorm";
 import { Guild } from "../../Guild";
-import { AuditAction } from "../../../lib/Audit Log/createLog";
+// From the standalone module, not createLog.ts: createLog imports the server entry point, so
+// importing it here would start the server whenever the entities load (e.g. in db:sync)
+import { AuditAction } from "../../../lib/Audit Log/auditActions";
 import { User } from "../../User";
 
 @Entity("audit_logs")
