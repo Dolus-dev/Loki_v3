@@ -14,6 +14,9 @@ import { AppDataSource } from "../data-source";
  * set DATABASE_URL for this one command; it takes priority over the .env file:
  *   PowerShell:  $env:DATABASE_URL="postgres://..."; pnpm --filter backend db:sync
  *   bash:        DATABASE_URL="postgres://..." pnpm --filter backend db:sync
+ * For a hosted database, use its direct (non-pooled) connection string here: schema changes
+ * are safer without a connection pooler in between. With Vercel's Supabase integration that's
+ * DATABASE_POSTGRES_URL_NON_POOLING; with Neon it's DATABASE_URL_UNPOOLED.
  *
  * Caution: syncing makes the tables match the entities, so a column removed from an entity
  * is dropped along with its data. Check entity changes before syncing a database with real

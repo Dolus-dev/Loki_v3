@@ -1,6 +1,12 @@
 import "dotenv/config";
 import { z } from "zod";
 
+// An optional value where an empty string (KEY="" in a .env file) counts as not set
+const optionalString = z.preprocess(
+	(value) => (value === "" ? undefined : value),
+	z.string().optional(),
+);
+
 const envSchema = z
 	.object({
 		NODE_ENV: z
@@ -30,7 +36,13 @@ const envSchema = z
 			.default("http://localhost:4000/auth/callback"),
 		BOT_TOKEN: z.string().min(1, "BOT_TOKEN is required"),
 		BOT_API_SECRET: z.string().min(1, "BOT_API_SECRET is required"),
-		DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+		// The PostgreSQL connection string. Either name works: DATABASE_URL (local, Neon, most
+		// hosts) or DATABASE_POSTGRES_URL (what Vercel's Supabase integration adds when connected
+		// with the "DATABASE" prefix; it's Supabase's pooled connection). If both are set,
+		// DATABASE_URL wins. The integration's other variables (Supabase keys, Prisma URL, ...)
+		// aren't used by the backend.
+		DATABASE_URL: optionalString,
+		DATABASE_POSTGRES_URL: optionalString,
 		// Key for encrypting stored Discord tokens: 32 random bytes, base64-encoded
 		TOKEN_ENCRYPTION_KEY: z
 			.string()
@@ -47,7 +59,16 @@ const envSchema = z
 	.refine((config) => !(config.DB_RESET && config.NODE_ENV === "production"), {
 		message: "DB_RESET cannot be enabled when NODE_ENV is production",
 		path: ["DB_RESET"],
-	});
+	})
+	.refine((config) => config.DATABASE_URL || config.DATABASE_POSTGRES_URL, {
+		message: "DATABASE_URL (or DATABASE_POSTGRES_URL) is required",
+		path: ["DATABASE_URL"],
+	})
+	// The rest of the backend only reads env.DATABASE_URL: resolve it to whichever was given
+	.transform(({ DATABASE_POSTGRES_URL, ...config }) => ({
+		...config,
+		DATABASE_URL: (config.DATABASE_URL ?? DATABASE_POSTGRES_URL) as string,
+	}));
 
 const parsedEnv = envSchema.safeParse(process.env);
 
