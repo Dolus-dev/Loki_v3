@@ -156,7 +156,7 @@ export default function RootLayoutHeader() {
 						})
 					}>
 					<Image
-						src="/logo.png"
+						src="/logo-512.png"
 						alt="Logo"
 						width={1024}
 						height={1024}

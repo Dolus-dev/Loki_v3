@@ -90,7 +90,7 @@ function NoticePreview() {
 		<div className="w-full max-w-md rounded-xl bg-neutral-800 p-4 shadow-2xl border border-neutral-700/60">
 			<div className="flex flex-row items-center gap-3 mb-3">
 				<Image
-					src="/logo.png"
+					src="/logo-512.png"
 					alt=""
 					width={64}
 					height={64}
@@ -135,7 +135,7 @@ export default function Home() {
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-row items-center gap-4">
 						<Image
-							src="/logo.png"
+							src="/logo-512.png"
 							alt="Loki logo"
 							width={256}
 							height={256}

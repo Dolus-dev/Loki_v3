@@ -162,7 +162,7 @@ export default function AboutPage() {
 			{/* Intro */}
 			<section className="flex flex-col items-center gap-6 text-center">
 				<Image
-					src="/logo.png"
+					src="/logo-512.png"
 					alt="Loki logo"
 					width={256}
 					height={256}

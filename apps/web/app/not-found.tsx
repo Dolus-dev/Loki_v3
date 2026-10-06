@@ -15,7 +15,7 @@ export default function NotFound() {
 	return (
 		<main className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 py-24 text-center">
 			<Image
-				src="/logo.png"
+				src="/logo-512.png"
 				alt=""
 				width={128}
 				height={128}
