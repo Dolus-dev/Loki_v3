@@ -34,8 +34,9 @@ const lastThrowAt = new Map<string, number>();
  * - redirects: when on, a throw can bounce onto a random member with an opt-in role.
  *
  * Each throw rolls an outcome (see THROW_OUTCOME_WEIGHTS): one item, two, three, or a
- * redirect. The result is posted publicly; problems (cooldown, wrong channel) are replied to
- * privately. Mentions show names but never ping anyone.
+ * redirect. The result is posted publicly and pings whoever got hit (the target, or on a
+ * redirect also the member it landed on); nothing else in the message can ping. Problems
+ * (cooldown, wrong channel) are replied to privately.
  */
 export default defineCommand({
   data: new SlashCommandBuilder()
@@ -110,7 +111,12 @@ export default defineCommand({
     });
 
     lastThrowAt.set(cooldownKey, Date.now());
-    await interaction.reply({ content: message, allowedMentions: { parse: [] } });
+
+    // Ping whoever got hit: the target, and on a redirect the member it bounced onto. Listing
+    // them explicitly means nothing else in the message can ping, e.g. @everyone or a role
+    // inside a server's custom item.
+    const pinged = outcome === 'redirect' && victim ? [target.id, victim.id] : [target.id];
+    await interaction.reply({ content: message, allowedMentions: { users: pinged } });
   },
 });
 
