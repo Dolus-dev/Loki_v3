@@ -36,7 +36,14 @@ const expiredQuery = z.object({
 		.transform((value) => value.split(",").map((type) => type.trim()))
 		.pipe(
 			z
-				.array(z.enum(LASTING_EVENT_TYPES as [ModerationEventType, ...ModerationEventType[]]))
+				.array(
+					z.enum(
+						LASTING_EVENT_TYPES as [
+							ModerationEventType,
+							...ModerationEventType[],
+						],
+					),
+				)
 				.min(1),
 		),
 	limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -64,7 +71,9 @@ router.get("/expired", async (req, res) => {
 	}
 	const { types, limit } = parsed.data;
 
-	const events: ExpiredEvent[] = await AppDataSource.getRepository(ModerationEvents)
+	const events: ExpiredEvent[] = await AppDataSource.getRepository(
+		ModerationEvents,
+	)
 		.createQueryBuilder("event")
 		.select("event.id", "id")
 		.addSelect(`event."guildId"`, "guildId")
@@ -89,6 +98,24 @@ const resolveBody = z.object({
 	resolvedBy: discordSnowflake,
 	// What happened, for the audit log, e.g. "Loki lacks the Ban Members permission"
 	detail: z.string().trim().max(512).optional(),
+});
+
+const eventQuery = z.object({});
+
+/**
+ * Lists events that are currently active, beginning with the oldest expiry, and ending with the most recently issued event with an expiration.
+ */
+
+router.get("/events", async (req, res) => {
+	const query = eventQuery.safeParse(req.query);
+	if (!query.success) {
+		return res.status(400).send({
+			error: "Invalid query parameters",
+			details: z.treeifyError(query.error),
+		});
+	}
+
+	return res.status(200).send({ message: "Moderation router is working" });
 });
 
 /**
@@ -122,7 +149,11 @@ router.post("/expired/:eventId/resolve", async (req, res) => {
 				.execute();
 
 			const row = (
-				result.raw as { guildId: string; issuedToId: string; eventType: string }[]
+				result.raw as {
+					guildId: string;
+					issuedToId: string;
+					eventType: string;
+				}[]
 			)[0];
 			if (!row) {
 				return false;
@@ -156,13 +187,14 @@ router.post("/expired/:eventId/resolve", async (req, res) => {
 		});
 
 		if (!resolved) {
-			return res
-				.status(409)
-				.send({ error: "The event is no longer active" });
+			return res.status(409).send({ error: "The event is no longer active" });
 		}
 		return res.status(204).send();
 	} catch (error) {
-		console.error(`Failed to resolve expired moderation event ${eventId}:`, error);
+		console.error(
+			`Failed to resolve expired moderation event ${eventId}:`,
+			error,
+		);
 		return res
 			.status(500)
 			.send({ error: "Failed to resolve the expired moderation event" });
