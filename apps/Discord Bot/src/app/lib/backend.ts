@@ -168,6 +168,30 @@ export interface ExpiredModerationEvent {
   expiresAt: string;
 }
 
+/** A moderation event as returned by GET /moderation/events */
+export interface ModerationEvent {
+  id: number;
+  reason: string;
+  eventType: 'ban' | 'mute' | 'warn' | 'timeout' | 'kick' | 'note';
+  // null for instant events (warn, kick, note), which have no lifecycle
+  status: 'active' | 'superseded' | 'ended' | 'failed' | null;
+  /** ISO 8601 date-time. */
+  endedAt: string | null;
+  expiresAt: string | null;
+  appealedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  evidenceUrl: string | null;
+  appealReason: string | null;
+  isAppealed: boolean;
+  // Discord IDs
+  guild: string;
+  issuedBy: string;
+  issuedTo: string;
+  evidenceMessageId: string | null;
+}
+
 /**
  * Lists expired events of the given types across every guild, oldest expiry first, at most
  * `limit` at a time. Only ask for types the bot knows how to lift.

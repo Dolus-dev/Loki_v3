@@ -10,13 +10,16 @@ import {
 import { User } from "../User";
 import { Guild } from "../Guild";
 
-export type ModerationEventType =
-	| "ban"
-	| "mute"
-	| "warn"
-	| "timeout"
-	| "kick"
-	| "note";
+export const MODERATION_EVENT_TYPES = [
+	"ban",
+	"mute",
+	"warn",
+	"timeout",
+	"kick",
+	"note",
+] as const;
+
+export type ModerationEventType = (typeof MODERATION_EVENT_TYPES)[number];
 
 /**
  * Where a lasting action (ban, mute, timeout) is in its life. Instant events (warn, kick, note)
@@ -26,7 +29,11 @@ export type ModerationEventType =
  * - ended: it ran its course or was cleared.
  * - failed: it should have ended but the bot could not lift it.
  */
-export type ModerationEventStatus = "active" | "superseded" | "ended" | "failed";
+export type ModerationEventStatus =
+	| "active"
+	| "superseded"
+	| "ended"
+	| "failed";
 
 // The database allows only one active event per user, guild and action type, so a newer
 // event can never sit next to an older one that is still active.
@@ -45,7 +52,7 @@ export class ModerationEvents {
 
 	@Column({
 		type: "enum",
-		enum: ["ban", "mute", "warn", "timeout", "kick", "note"],
+		enum: MODERATION_EVENT_TYPES,
 	})
 	eventType: ModerationEventType;
 
@@ -110,7 +117,7 @@ export class ModerationEvents {
 		issuedBy: User,
 		lastUpdatedBy: User,
 		guild: Guild,
-		evidenceUrl?: string | null
+		evidenceUrl?: string | null,
 	) {
 		this.reason = reason;
 		this.eventType = eventType;

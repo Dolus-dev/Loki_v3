@@ -10,17 +10,21 @@ import { requireBot } from "../../lib/Middlewares/requireBot";
 import { discordSnowflake } from "../../lib/validation";
 import { LASTING_EVENT_TYPES } from "../../lib/moderationLifecycle";
 import {
+	MODERATION_EVENT_TYPES,
 	ModerationEvents,
 	ModerationEventType,
 } from "../../models/Moderation/ModerationEvents";
 import { User } from "../../models/User";
 
 /**
- * Expiry of temporary moderation events (bans, mutes, timeouts), across all guilds.
+ * Moderation events for the bot: looking them up, and the expiry of temporary ones.
  *
- * The backend only stores when an event expires; lifting it in Discord is the bot's job.
- * The bot polls `GET /moderation/expired` for active events whose time is up, undoes each
- * one in Discord (e.g. unbans the user), then reports the outcome with `POST
+ * `GET /moderation/events` lists a guild's events, with optional filters (see the route).
+ *
+ * Expiry of temporary events (bans, mutes, timeouts), across all guilds: the backend only
+ * stores when an event expires; lifting it in Discord is the bot's job. The bot polls
+ * `GET /moderation/expired` for active events whose time is up, undoes each one in Discord
+ * (e.g. unbans the user), then reports the outcome with `POST
  * /moderation/expired/:eventId/resolve`, which marks the event "ended" or "failed".
  *
  * Bot-only: dashboard users can't see or resolve events of guilds they may not access.
@@ -54,7 +58,7 @@ interface ExpiredEvent {
 	guildId: string;
 	userId: string;
 	eventType: ModerationEventType;
-	expiresAt: Date;
+	expiresAt: Date | null;
 }
 
 /**
@@ -100,12 +104,30 @@ const resolveBody = z.object({
 	detail: z.string().trim().max(512).optional(),
 });
 
-const eventQuery = z.object({});
+const eventQuery = z.object({
+	guildId: discordSnowflake,
+	issuedBy: discordSnowflake.optional(),
+	issuedTo: discordSnowflake.optional(),
+	isActive: z.stringbool().optional(),
+	expiresBefore: z.coerce.date().optional(),
+	expiresAfter: z.coerce.date().optional(),
+	types: z
+		.string()
+		.transform((value) => value.split(",").map((type) => type.trim()))
+		.pipe(z.array(z.enum(MODERATION_EVENT_TYPES)).min(1))
+		.optional(),
+	limit: z.coerce.number().int().min(1).max(100).default(50),
+	sortBy: z.enum(["createdAt", "expiresAt"]).default("createdAt"),
+	sortOrder: z.enum(["ASC", "DESC"]).default("DESC"),
+});
 
 /**
- * Lists events that are currently active, beginning with the oldest expiry, and ending with the most recently issued event with an expiration.
+ * Lists a guild's moderation events, of every type and status, newest first by default.
+ * Each filter is optional and narrows the result: `issuedBy` (moderator), `issuedTo` (user),
+ * `types`, `isActive` (false also matches warns, kicks and notes, which are never active) and
+ * `expiresBefore`/`expiresAfter`. Events without an expiry sort last when sorting by
+ * `expiresAt`. At most `limit` are returned, with `guild`, `issuedBy` and `issuedTo` as IDs.
  */
-
 router.get("/events", async (req, res) => {
 	const query = eventQuery.safeParse(req.query);
 	if (!query.success) {
@@ -115,7 +137,57 @@ router.get("/events", async (req, res) => {
 		});
 	}
 
-	return res.status(200).send({ message: "Moderation router is working" });
+	const {
+		guildId,
+		issuedBy,
+		issuedTo,
+		isActive,
+		types,
+		expiresBefore,
+		expiresAfter,
+		limit,
+		sortBy,
+		sortOrder,
+	} = query.data;
+
+	const builder = AppDataSource.getRepository(ModerationEvents)
+		.createQueryBuilder("event")
+		.loadAllRelationIds({ relations: ["guild", "issuedBy", "issuedTo"] })
+		.where(`event."guildId" = :guildId`, { guildId });
+
+	if (issuedBy) {
+		builder.andWhere(`event."issuedById" = :issuedBy`, { issuedBy });
+	}
+
+	if (issuedTo) {
+		builder.andWhere(`event."issuedToId" = :issuedTo`, { issuedTo });
+	}
+
+	if (isActive === true) {
+		builder.andWhere(`event."status" = 'active'`);
+	} else if (isActive === false) {
+		builder.andWhere(`event."status" IS DISTINCT FROM 'active'`);
+	}
+
+	if (types) {
+		builder.andWhere(`event."eventType" IN (:...types)`, { types });
+	}
+
+	if (expiresBefore) {
+		builder.andWhere(`event."expiresAt" <= :expiresBefore`, { expiresBefore });
+	}
+
+	if (expiresAfter) {
+		builder.andWhere(`event."expiresAt" >= :expiresAfter`, { expiresAfter });
+	}
+
+	const events = await builder
+		.orderBy(`event."${sortBy}"`, sortOrder, "NULLS LAST")
+		.addOrderBy(`event."id"`, sortOrder) // tie-breaker for events with the same timestamp
+		.limit(limit)
+		.getMany();
+
+	return res.status(200).send(events);
 });
 
 /**
