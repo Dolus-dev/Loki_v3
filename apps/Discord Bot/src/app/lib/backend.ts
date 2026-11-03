@@ -192,6 +192,18 @@ export interface ModerationEvent {
   evidenceMessageId: string | null;
 }
 
+export interface ModerationEventsPage {
+  data: ModerationEvent[];
+  pagination: {
+    limit: number;
+    sortBy: 'createdAt' | 'expiresAt';
+    sortOrder: `ASC` | `DESC`;
+    // Pass as `cursor` to the next request to get the next page; null on the last page.
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+}
+
 /**
  * Lists expired events of the given types across every guild, oldest expiry first, at most
  * `limit` at a time. Only ask for types the bot knows how to lift.

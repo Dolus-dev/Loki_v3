@@ -1,9 +1,19 @@
+import * as z from "zod";
+
 /**
  * Encodes a row ID as an opaque pagination cursor
  * @param id The ID of the last row on the current page
  */
 export function encodeCursor(id: number): string {
 	return Buffer.from(String(id)).toString("base64");
+}
+
+/**
+ * Encodes a JSON value as an opaque pagination cursor, for keyset pagination that needs more
+ * than the row ID (e.g. the value of the column being sorted on)
+ */
+export function encodeJsonCursor(value: unknown): string {
+	return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
 
 // Row IDs are Postgres `integer` (serial) columns, so anything above this makes the
@@ -32,4 +42,21 @@ export function parseRowId(value: string): number | null {
 export function decodeCursor(cursor: string): number | null {
 	// Buffer.from never throws on bad base64; it just decodes to garbage
 	return parseRowId(Buffer.from(cursor, "base64").toString("utf-8"));
+}
+
+/**
+ * Decodes a cursor made by 1encodeJsonCursor` and checks its shape
+ * @Returns The value, or null if the cursor isnt valid JSON matching `schema`
+ */
+export function decodeJsonCursor<T>(
+	cursor: string,
+	schema: z.ZodType<T>,
+): T | null {
+	try {
+		const json = JSON.parse(Buffer.from(cursor, "base64url").toString("utf-8"));
+		const result = schema.safeParse(json);
+		return result.success ? result.data : null;
+	} catch {
+		return null; // not JSON
+	}
 }

@@ -15,6 +15,7 @@ import {
 	ModerationEventType,
 } from "../../models/Moderation/ModerationEvents";
 import { User } from "../../models/User";
+import { decodeJsonCursor, encodeJsonCursor } from "../../lib/pagination";
 
 /**
  * Moderation events for the bot: looking them up, and the expiry of temporary ones.
@@ -104,6 +105,9 @@ const resolveBody = z.object({
 	detail: z.string().trim().max(512).optional(),
 });
 
+const SORT_BY = ["createdAt", "expiresAt"] as const;
+const SORT_ORDER = ["ASC", "DESC"] as const;
+
 const eventQuery = z.object({
 	guildId: discordSnowflake,
 	issuedBy: discordSnowflake.optional(),
@@ -117,8 +121,18 @@ const eventQuery = z.object({
 		.pipe(z.array(z.enum(MODERATION_EVENT_TYPES)).min(1))
 		.optional(),
 	limit: z.coerce.number().int().min(1).max(100).default(50),
-	sortBy: z.enum(["createdAt", "expiresAt"]).default("createdAt"),
-	sortOrder: z.enum(["ASC", "DESC"]).default("DESC"),
+	sortBy: z.enum(SORT_BY).default("createdAt"),
+	sortOrder: z.enum(SORT_ORDER).default("DESC"),
+	isAppealed: z.stringbool().optional(),
+	cursor: z.string().optional(),
+});
+
+const eventCursor = z.object({
+	sortBy: z.enum(SORT_BY),
+	sortOrder: z.enum(SORT_ORDER),
+	id: z.number().int().positive(),
+	// Only when sorting by expiresAt; null for an event without an expiry
+	expiresAt: z.iso.datetime().nullable().optional(),
 });
 
 /**
@@ -148,6 +162,8 @@ router.get("/events", async (req, res) => {
 		limit,
 		sortBy,
 		sortOrder,
+		isAppealed,
+		cursor,
 	} = query.data;
 
 	const builder = AppDataSource.getRepository(ModerationEvents)
@@ -181,13 +197,82 @@ router.get("/events", async (req, res) => {
 		builder.andWhere(`event."expiresAt" >= :expiresAfter`, { expiresAfter });
 	}
 
-	const events = await builder
-		.orderBy(`event."${sortBy}"`, sortOrder, "NULLS LAST")
-		.addOrderBy(`event."id"`, sortOrder) // tie-breaker for events with the same timestamp
-		.limit(limit)
-		.getMany();
+	if (isAppealed === true) {
+		builder.andWhere(`event."isAppealed" = true`);
+	} else if (isAppealed === false) {
+		builder.andWhere(`event."isAppealed" = false`);
+	}
 
-	return res.status(200).send(events);
+	if (sortBy === "createdAt") {
+		builder.orderBy(`event."createdAt"`, sortOrder);
+	} else {
+		builder
+			.orderBy(`event."expiresAt"`, sortOrder, "NULLS LAST")
+			.addOrderBy(`event."id"`, sortOrder); // tie-breaker for events with the same expiresAt
+	}
+
+	if (cursor) {
+		const position = decodeJsonCursor(cursor, eventCursor);
+		// A cursor only means something with the sort it came from
+		if (
+			!position ||
+			position.sortBy !== sortBy ||
+			position.sortOrder !== sortOrder
+		) {
+			return res.status(400).send({ error: "Invalid cursor" });
+		}
+
+		const after = sortOrder === "ASC" ? ">" : "<";
+		if (sortBy === "createdAt") {
+			builder.andWhere(`event."id" ${after} :cursorId`, {
+				cursorId: position.id,
+			});
+		} else if (position.expiresAt) {
+			builder.andWhere(
+				`(event."expiresAt" ${after} :cursorExpiresAt
+					OR (event."expiresAt" = :cursorExpireAt AND event."id" ${after} :cursorId))
+					OR event."expiresAt" IS NULL`,
+				{ cursorExpiresAt: position.expiresAt, cursorId: position.id },
+			);
+		} else {
+			// Already into the events without an expiry, which only the ID orders
+			builder.andWhere(
+				`event."expiresAt" IS NULL AND event."id" ${after} : cursorId`,
+				{
+					cursorId: position.id,
+				},
+			);
+		}
+	}
+
+	const events = await builder.limit(limit + 1).getMany();
+	const hasMore = events.length > limit;
+	const data = events.slice(0, limit);
+
+	const last = data.at(-1);
+	const nextCursor =
+		hasMore && last
+			? encodeJsonCursor({
+					sortBy,
+					sortOrder,
+					id: last.id,
+					expiresAt:
+						sortBy === "expiresAt"
+							? (last.expiresAt?.toISOString() ?? null)
+							: undefined,
+				})
+			: undefined;
+
+	return res.status(200).send({
+		data,
+		pagination: {
+			limit,
+			sortBy,
+			sortOrder,
+			nextCursor,
+			hasMore,
+		},
+	});
 });
 
 /**
