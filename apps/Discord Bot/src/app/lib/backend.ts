@@ -1,3 +1,4 @@
+import { Snowflake } from 'discord.js';
 import { env } from '../../config/env.js';
 
 /**
@@ -197,7 +198,7 @@ export interface ModerationEventsPage {
   pagination: {
     limit: number;
     sortBy: 'createdAt' | 'expiresAt';
-    sortOrder: `ASC` | `DESC`;
+    sortOrder: 'ASC' | 'DESC';
     // Pass as `cursor` to the next request to get the next page; null on the last page.
     nextCursor: string | null;
     hasMore: boolean;
@@ -223,4 +224,42 @@ export function resolveExpiredModerationEvent(
   input: { outcome: 'ended' | 'failed'; resolvedBy: string; detail?: string },
 ): Promise<void> {
   return backendRequest(`/moderation/expired/${eventId}/resolve`, { method: 'POST', body: input });
+}
+
+/** What `getModerationEvents` can filter and sort by; each filter narrows the result. */
+export interface ModerationEventQuery {
+  /** The guild whose events to list. */
+  guildId?: string;
+  /** The moderator who issued the event. */
+  issuedBy?: Snowflake;
+  /** The user the event was issued to. */
+  issuedTo?: Snowflake;
+  types?: ModerationEvent['eventType'][];
+  /** false also matches warns, kicks and notes, which are never active. */
+  isActive?: boolean;
+  isAppealed?: boolean;
+  expiresBefore?: Date;
+  expiresAfter?: Date;
+  sortBy?: 'createdAt' | 'expiresAt';
+  sortOrder?: 'ASC' | 'DESC';
+  /** 1–100, default 50. */
+  limit?: number;
+  /** `pagination.nextCursor` of the previous page. Keep the other options the same. */
+  cursor?: string;
+}
+
+/** Lists a guild's moderation events, one page at a time, newest first by default. */
+export function getModerationEvents(options: ModerationEventQuery = {}): Promise<ModerationEventsPage> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(options)) {
+    // Leave out unset options; an empty list would be rejected ("types=" isn't a type)
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) {
+      continue;
+    }
+    query.set(
+      key,
+      Array.isArray(value) ? value.join(',') : value instanceof Date ? value.toISOString() : String(value),
+    );
+  }
+  return backendRequest(`/moderation/events?${query}`);
 }

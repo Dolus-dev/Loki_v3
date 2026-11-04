@@ -109,7 +109,7 @@ const SORT_BY = ["createdAt", "expiresAt"] as const;
 const SORT_ORDER = ["ASC", "DESC"] as const;
 
 const eventQuery = z.object({
-	guildId: discordSnowflake,
+	guildId: discordSnowflake.optional(),
 	issuedBy: discordSnowflake.optional(),
 	issuedTo: discordSnowflake.optional(),
 	isActive: z.stringbool().optional(),
@@ -168,8 +168,11 @@ router.get("/events", async (req, res) => {
 
 	const builder = AppDataSource.getRepository(ModerationEvents)
 		.createQueryBuilder("event")
-		.loadAllRelationIds({ relations: ["guild", "issuedBy", "issuedTo"] })
-		.where(`event."guildId" = :guildId`, { guildId });
+		.loadAllRelationIds({ relations: ["guild", "issuedBy", "issuedTo"] });
+
+	if (guildId) {
+		builder.andWhere(`event."guildId" = :guildId`, { guildId });
+	}
 
 	if (issuedBy) {
 		builder.andWhere(`event."issuedById" = :issuedBy`, { issuedBy });
@@ -204,7 +207,7 @@ router.get("/events", async (req, res) => {
 	}
 
 	if (sortBy === "createdAt") {
-		builder.orderBy(`event."createdAt"`, sortOrder);
+		builder.orderBy(`event."id"`, sortOrder);
 	} else {
 		builder
 			.orderBy(`event."expiresAt"`, sortOrder, "NULLS LAST")
@@ -230,14 +233,14 @@ router.get("/events", async (req, res) => {
 		} else if (position.expiresAt) {
 			builder.andWhere(
 				`(event."expiresAt" ${after} :cursorExpiresAt
-					OR (event."expiresAt" = :cursorExpireAt AND event."id" ${after} :cursorId))
-					OR event."expiresAt" IS NULL`,
+					OR (event."expiresAt" = :cursorExpiresAt AND event."id" ${after} :cursorId)
+					OR event."expiresAt" IS NULL)`,
 				{ cursorExpiresAt: position.expiresAt, cursorId: position.id },
 			);
 		} else {
 			// Already into the events without an expiry, which only the ID orders
 			builder.andWhere(
-				`event."expiresAt" IS NULL AND event."id" ${after} : cursorId`,
+				`event."expiresAt" IS NULL AND event."id" ${after} :cursorId`,
 				{
 					cursorId: position.id,
 				},
@@ -259,9 +262,9 @@ router.get("/events", async (req, res) => {
 					expiresAt:
 						sortBy === "expiresAt"
 							? (last.expiresAt?.toISOString() ?? null)
-							: undefined,
+							: null,
 				})
-			: undefined;
+			: null;
 
 	return res.status(200).send({
 		data,
