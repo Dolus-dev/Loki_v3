@@ -130,6 +130,16 @@ export function createModerationEvent(
   });
 }
 
+export function bulkCreateModerationEvents(
+  guildId: string,
+  input: { userId: string; event: CreateModerationEventInput }[],
+): Promise<{ eventId: number; supersededEventIds: number[] }[]> {
+  return backendRequest(`/guilds/${guildId}/moderation/events/bulk`, {
+    method: 'POST',
+    body: input,
+  });
+}
+
 /** The temporary event types, i.e. the ones that expire. */
 export type ExpiringEventType = 'ban' | 'mute' | 'timeout';
 
